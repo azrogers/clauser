@@ -11,21 +11,21 @@
 
 class ClParseState {
 public:
-	ClParseState(const std::string& inputText) :
-		inputText(inputText)
-	{
-	}
+    ClParseState(const std::string& inputText) :
+        inputText(inputText)
+    {
+    }
 
-	ClStringTableId AddString(const std::string_view& string);
-	ClStringTableId AddString(const std::string& string);
+    ClStringTableId AddString(const std::string_view& string);
+    ClStringTableId AddString(const std::string& string);
 
-	const std::string_view& LookupString(const ClStringTableId& id) const;
-	const std::string& GetInputText() const { return this->inputText; }
+    const std::string_view& LookupString(const ClStringTableId& id) const;
+    const std::string& GetInputText() const { return this->inputText; }
 
 private:
-	std::string inputText;
+    std::string inputText;
 
-	std::vector<std::string_view> stringTable;
-	std::list<std::string> storedStrings;
-	std::map<uint64_t, ClStringTableId> stringTableLookup;
+    std::vector<std::string_view> stringTable;
+    std::list<std::string> storedStrings;
+    std::map<uint64_t, ClStringTableId> stringTableLookup;
 };
