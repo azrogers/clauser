@@ -10,3 +10,7 @@ pad = "0.1.6"
 serde = { version = "1.0.203", features = ["derive", "std"] }
 serde_path_to_error = "0.1.16"
 clauser_macros = { path = "./macros" }
+static_assertions = "1.1.0"
+
+[dev-dependencies]
+trybuild = "1.0.96"

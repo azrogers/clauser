@@ -77,7 +77,7 @@ fn primitive_array() -> Result<(), Error> {
     );
     assert_eq!(
         from_str::<SingleContainer<Vec<i32>>>("val = {}")?.val,
-        vec![]
+        Vec::<i32>::new()
     );
 
     expect_error::<SingleContainer<Vec<i32>>>(
@@ -145,6 +145,18 @@ pub fn dates() -> Result<(), Error> {
     SingleContainer::<(u32, u32, u32, u32)>::expect("val = 1940.1.1.18", (1940, 1, 1, 18))?;
     SingleContainer::<(u16, u8, u8, u8)>::expect("val = 1933.11.4", (1933, 11, 4, 0))?;
     SingleContainer::<(u16, u8, u8, u8)>::expect("val = 1033.08.2.30", (1033, 8, 2, 30))?;
+
+    Ok(())
+}
+
+#[test]
+pub fn short_object_syntax() -> Result<(), Error> {
+    SingleContainer::<StringField>::expect(
+        "val.str = test",
+        StringField {
+            str: String::from("test"),
+        },
+    )?;
 
     Ok(())
 }

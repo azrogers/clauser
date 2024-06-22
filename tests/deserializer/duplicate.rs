@@ -1,6 +1,7 @@
 use super::util::{expect_error, SingleContainer};
 use clauser::error::{Error, ErrorType};
 use clauser_macros::{duplicate_keys, EnableDuplicateKeys};
+use trybuild::TestCases;
 
 #[derive(Debug, PartialEq)]
 #[duplicate_keys]
@@ -85,4 +86,20 @@ pub fn duplicate_keys_invalid() -> Result<(), Error> {
     expect_error::<SingleContainer<i32>>("val = 1 val = 2 val = 3", ErrorType::DuplicateField)?;
 
     Ok(())
+}
+
+#[test]
+pub fn only_named_structs() {
+    let t = TestCases::new();
+    t.compile_fail("tests/deserializer/cases/00_enum.rs");
+    t.compile_fail("tests/deserializer/cases/01_union.rs");
+    t.compile_fail("tests/deserializer/cases/02_named.rs");
+}
+
+#[test]
+pub fn correct_field_type() {
+    let t = TestCases::new();
+    t.compile_fail("tests/deserializer/cases/03_wrong_type.rs");
+    t.compile_fail("tests/deserializer/cases/04_not_vec.rs");
+    t.pass("tests/deserializer/cases/05_generic.rs");
 }

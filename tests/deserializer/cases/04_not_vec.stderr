@@ -1,0 +1,60 @@
+error[E0277]: the trait bound `std::option::Option<std::string::String>: Extend<std::string::String>` is not satisfied
+ --> tests/deserializer/cases/04_not_vec.rs:3:1
+  |
+3 | #[duplicate_keys]
+  | ^^^^^^^^^^^^^^^^^ the trait `Extend<std::string::String>` is not implemented for `std::option::Option<std::string::String>`
+  |
+  = help: the following other types implement trait `Extend<A>`:
+            `()` implements `Extend<()>`
+            `(ExtendA, ExtendB)` implements `Extend<(A, B)>`
+            `BTreeMap<K, V, A>` implements `Extend<(&'a K, &'a V)>`
+            `BTreeMap<K, V, A>` implements `Extend<(K, V)>`
+            `BTreeSet<T, A>` implements `Extend<&'a T>`
+            `BTreeSet<T, A>` implements `Extend<T>`
+            `BinaryHeap<T, A>` implements `Extend<&'a T>`
+            `BinaryHeap<T, A>` implements `Extend<T>`
+            `HashMap<K, V, S>` implements `Extend<(&'a K, &'a V)>`
+            `HashMap<K, V, S>` implements `Extend<(K, V)>`
+            `HashSet<T, S>` implements `Extend<&'a T>`
+            `HashSet<T, S>` implements `Extend<T>`
+            `LinkedList<T, A>` implements `Extend<&'a T>`
+            `LinkedList<T, A>` implements `Extend<T>`
+            `OsString` implements `Extend<&'a OsStr>`
+            `OsString` implements `Extend<Cow<'a, OsStr>>`
+            `OsString` implements `Extend<OsString>`
+            `PathBuf` implements `Extend<P>`
+            `Vec<T, A>` implements `Extend<&'a T>`
+            `Vec<T, A>` implements `Extend<T>`
+            `VecDeque<T, A>` implements `Extend<&'a T>`
+            `VecDeque<T, A>` implements `Extend<T>`
+            `hashbrown::map::HashMap<K, V, S, A>` implements `Extend<&'a (K, V)>`
+            `hashbrown::map::HashMap<K, V, S, A>` implements `Extend<(&'a K, &'a V)>`
+            `hashbrown::map::HashMap<K, V, S, A>` implements `Extend<(K, V)>`
+            `hashbrown::set::HashSet<T, S, A>` implements `Extend<&'a T>`
+            `hashbrown::set::HashSet<T, S, A>` implements `Extend<T>`
+            `std::string::String` implements `Extend<&'a char>`
+            `std::string::String` implements `Extend<&'a str>`
+            `std::string::String` implements `Extend<Box<str, A>>`
+            `std::string::String` implements `Extend<Cow<'a, str>>`
+            `std::string::String` implements `Extend<char>`
+            `std::string::String` implements `Extend<std::string::String>`
+            `std::sys_common::wtf8::Wtf8Buf` implements `Extend<std::sys_common::wtf8::CodePoint>`
+note: required by a bound in `<TestVisitor as Visitor<'de>>::visit_map::_::{closure#0}::assert_impl_all`
+ --> tests/deserializer/cases/04_not_vec.rs:3:1
+  |
+3 | #[duplicate_keys]
+  | ^^^^^^^^^^^^^^^^^ required by this bound in `assert_impl_all`
+  = note: this error originates in the attribute macro `duplicate_keys` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no variant or associated item named `new` found for enum `std::option::Option` in the current scope
+ --> tests/deserializer/cases/04_not_vec.rs:3:1
+  |
+3 | #[duplicate_keys]
+  | ^^^^^^^^^^^^^^^^^ variant or associated item not found in `Option<_>`
+  |
+help: there is a method `ne` with a similar name, but with different arguments
+ --> $RUST/core/src/cmp.rs
+  |
+  |     fn ne(&self, other: &Rhs) -> bool {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = note: this error originates in the attribute macro `duplicate_keys` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,7 @@
+error: error at callsite #0 bytes(55..100): duplicate_keys is only valid for structs
+ --> tests/deserializer/cases/01_union.rs:3:1
+  |
+3 | #[duplicate_keys]
+  | ^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `duplicate_keys` (in Nightly builds, run with -Z macro-backtrace for more info)

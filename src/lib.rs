@@ -13,3 +13,7 @@ pub mod error {
         Error, ErrorContext, ErrorContextProvider, ErrorType, ParseCompleteResult, ParseResult,
     };
 }
+
+pub mod static_assertions {
+    pub use static_assertions::*;
+}

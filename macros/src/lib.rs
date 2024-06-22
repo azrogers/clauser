@@ -4,20 +4,17 @@ extern crate proc_macro;
 extern crate proc_macro2;
 extern crate quote;
 extern crate syn;
-extern crate synstructure;
 
 mod error;
 
 use std::str::FromStr;
 
-use proc_macro2::Span;
-
 use error::MacroError;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{format_ident, quote, ToTokens, TokenStreamExt};
 use syn::{
-    parse_macro_input, spanned::Spanned, DataStruct, DeriveInput, Field, Fields, GenericArgument,
-    Ident, Macro, Type,
+    spanned::Spanned, DataStruct, DeriveInput, Field, Fields, GenericArgument, Ident, PathSegment,
+    Type,
 };
 
 struct StructFields<'a> {
@@ -32,8 +29,10 @@ impl<'a> ToTokens for StructFieldsDeclarations<'a> {
         self.0.duplicate.iter().for_each(|f| {
             let field_name = f.ident.as_ref().unwrap();
             let field_type = &f.ty;
+            let last = get_last_path_segment(field_type).unwrap();
+            let collection_name = &last.ident;
             tokens.append_all(quote! {
-                let mut #field_name: #field_type = Vec::new();
+                let mut #field_name: #field_type = #collection_name::new();
             })
         });
 
@@ -102,42 +101,46 @@ impl<'a> StructFields<'a> {
     }
 }
 
-fn unwrap_generic_type(t: &Type) -> Result<Type, MacroError> {
+// returns the last path segment in a Type::Path
+fn get_last_path_segment<'t>(t: &'t Type) -> Result<&'t PathSegment, MacroError> {
     match t {
         Type::Path(p) => {
             let p = &p.path;
-            let last = p
-                .segments
+            p.segments
                 .last()
-                .ok_or(MacroError::Message("no type path found", p.span()))?;
-            let args = match &last.arguments {
-                syn::PathArguments::None => Err(MacroError::Message(
-                    "can't get generic type of a type without arguments",
-                    last.span(),
-                )),
-                syn::PathArguments::AngleBracketed(params) => Ok(&params.args),
-                syn::PathArguments::Parenthesized(params) => Err(MacroError::Message(
-                    "don't know how to handle paranthesized generic arguments",
-                    last.span(),
-                )),
-            }?;
-
-            for a in args {
-                if let GenericArgument::Type(gt) = a {
-                    return Ok(gt.clone());
-                }
-            }
-
-            Err(MacroError::Message(
-                "unable to find generic type parameter",
-                t.span(),
-            ))
+                .ok_or(MacroError::Message("no type path found", p.span()))
         }
         _ => Err(MacroError::Message(
             "only Type::Path is supported",
             t.span(),
         )),
     }
+}
+
+// returns the first angle bracketed argument of a path segment
+fn unwrap_generic_type<'a>(p: &'a PathSegment) -> Result<&'a Type, MacroError> {
+    let args = match &p.arguments {
+        syn::PathArguments::None => Err(MacroError::Message(
+            "can't get generic type of a type without arguments",
+            p.span(),
+        )),
+        syn::PathArguments::AngleBracketed(params) => Ok(&params.args),
+        syn::PathArguments::Parenthesized(_params) => Err(MacroError::Message(
+            "don't know how to handle parenthesized generic arguments",
+            p.span(),
+        )),
+    }?;
+
+    for a in args {
+        if let GenericArgument::Type(gt) = a {
+            return Ok(gt);
+        }
+    }
+
+    Err(MacroError::Message(
+        "unable to find generic type parameter",
+        p.span(),
+    ))
 }
 
 fn field_has_attr_for_duplicate(field: &Field) -> Result<bool, MacroError> {
@@ -166,11 +169,11 @@ fn field_has_attr_for_duplicate(field: &Field) -> Result<bool, MacroError> {
     Ok(false)
 }
 
-fn discern_fields<'a>(s: &'a mut DataStruct) -> Result<Option<StructFields<'a>>, MacroError> {
+fn discern_fields<'a>(s: &'a DataStruct) -> Result<Option<StructFields<'a>>, MacroError> {
     let mut normal_fields: Vec<&'a Field> = Vec::new();
     let mut duplicate_fields: Vec<&'a Field> = Vec::new();
 
-    let fields = &mut s.fields;
+    let fields = &s.fields;
 
     match fields {
         Fields::Named(named) => {
@@ -195,22 +198,32 @@ fn field_names_ident_for_struct(name: &TokenStream) -> Result<TokenStream, Macro
     Ok(tokens)
 }
 
-fn visitor_name(name: &TokenStream) -> Result<TokenStream, MacroError> {
+fn visitor_name(item: &DeriveInput) -> Result<TokenStream, MacroError> {
+    let name = &item.ident;
+    let generics = &item.generics;
+
     Ok(TokenStream::from_str(&format!("{}Visitor", name))?.into())
 }
 
-fn visitor_for_struct(name: &TokenStream, s: &mut DataStruct) -> Result<TokenStream, MacroError> {
-    let visitor = visitor_name(name)?;
+fn visitor_for_struct(item: &DeriveInput, s: &DataStruct) -> Result<TokenStream, MacroError> {
+    let name = item.ident.to_token_stream();
+    let generics = item.generics.to_token_stream();
+
+    let full_name = quote! { #name };
+
+    let visitor = visitor_name(&item)?;
     let struct_fields = discern_fields(s)?.ok_or(MacroError::Message(
         "from_duplicate_key only supported on named fields",
         name.span(),
     ))?;
 
+    let mut assertions = TokenStream::new();
+
     let name_str = name.to_string();
 
     let declarations = struct_fields.to_declarations().to_token_stream();
     let len = struct_fields.normal.len() + struct_fields.duplicate.len();
-    let names_const_label = field_names_ident_for_struct(name)?;
+    let names_const_label = field_names_ident_for_struct(&name)?;
     let names_contents = struct_fields.to_names(true).to_token_stream();
     let names_def = quote! {
         impl #name {
@@ -241,15 +254,23 @@ fn visitor_for_struct(name: &TokenStream, s: &mut DataStruct) -> Result<TokenStr
     let duplicate_match_arms: Vec<TokenStream> = (duplicate
         .iter()
         .map(|f| (f.ident.as_ref().unwrap(), &f.ty))
-        .map(|(s, t)| Ok((s, unwrap_generic_type(t)?)))
-        .collect::<Result<Vec<(&Ident, Type)>, MacroError>>())?
+        .map(|(s, t)| {
+            let last = get_last_path_segment(t)?;
+            let generic = unwrap_generic_type(last)?;
+            Ok((s, generic, &last.ident))
+        })
+        .collect::<Result<Vec<(&Ident, &Type, &Ident)>, MacroError>>())?
     .into_iter()
-    .map(|(s, t)| {
+    .map(|(s, t, c)| {
+        assertions.append_all(quote! {
+            clauser::static_assertions::assert_impl_all!(#t: Sized, serde::de::Deserialize<'static>);
+            clauser::static_assertions::assert_impl_all!(#c<#t>: std::iter::Extend<#t>);
+        });
         let sstr = s.to_string();
         quote! {
             #sstr => {
                 let val = map.next_value::<#t>()?;
-                #s.push(val);
+                #s.extend(std::iter::once(val));
                 Ok(())
             }
         }
@@ -272,6 +293,8 @@ fn visitor_for_struct(name: &TokenStream, s: &mut DataStruct) -> Result<TokenStr
             where
                 A: serde::de::MapAccess<'de>,
             {
+                #assertions
+
                 #declarations
 
                 while let Some(key) = map.next_key::<&str>()? {
@@ -292,8 +315,11 @@ fn visitor_for_struct(name: &TokenStream, s: &mut DataStruct) -> Result<TokenStr
     })
 }
 
-fn deserializer_for_struct(name: &TokenStream) -> Result<TokenStream, MacroError> {
-    let visitor = visitor_name(name)?;
+fn deserializer_for_struct(item: &DeriveInput) -> Result<TokenStream, MacroError> {
+    let name = &item.ident;
+    let generics = &item.generics;
+    let params = &generics.params;
+    let visitor = visitor_name(&item)?;
     Ok(quote! {
         impl<'de> serde::de::Deserialize<'de> for #name {
             fn deserialize<D>(deserializer: D) -> Result<#name, D::Error>
@@ -311,20 +337,18 @@ fn duplicate_keys_impl(input: proc_macro::TokenStream) -> Result<TokenStream, Ma
     let original: TokenStream = input.clone().into();
     let mut item: DeriveInput = syn::parse(input).unwrap();
 
-    let name = item.ident.to_token_stream();
-
-    let visitor = match &mut item.data {
-        syn::Data::Struct(s) => visitor_for_struct(&name, s),
+    let visitor = match &item.data {
+        syn::Data::Struct(s) => visitor_for_struct(&item, s),
         _ => Err(MacroError::Message(
-            "enable_duplicate_keys is only valid for structs",
+            "duplicate_keys is only valid for structs",
             item.span(),
         )),
     }?;
 
-    let deserializer = deserializer_for_struct(&name)?;
+    let deserializer = deserializer_for_struct(&item)?;
 
     let output = quote! {
-        #[derive(EnableDuplicateKeys)]
+        #[derive(clauser_macros::EnableDuplicateKeys)]
         #original
         #visitor
         #deserializer

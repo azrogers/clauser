@@ -175,7 +175,7 @@ pub fn adjacently_tagged_enum() -> Result<(), Error> {
     )?;
     expect_error::<SingleContainer<AdjacentlyTaggedEnum>>(
         "val = { c = {} }",
-        ErrorType::UnexpectedTokenError,
+        ErrorType::MissingField,
     )?;
 
     Ok(())
