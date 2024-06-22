@@ -1,6 +1,6 @@
 use super::util::{expect_error, SingleContainer};
 use clauser::error::{Error, ErrorType};
-use clauser_macros::{duplicate_keys, EnableDuplicateKeys};
+use clauser_macros::duplicate_keys;
 use trybuild::TestCases;
 
 #[derive(Debug, PartialEq)]

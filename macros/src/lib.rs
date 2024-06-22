@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 use error::MacroError;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{
     spanned::Spanned, DataStruct, DeriveInput, Field, Fields, GenericArgument, Ident, PathSegment,
     Type,

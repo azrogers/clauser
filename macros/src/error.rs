@@ -1,11 +1,8 @@
-use std::panic::Location;
-
 use proc_macro2::{LexError, Span, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt};
 
 #[derive(Debug)]
 pub enum MacroError {
-    Unknown,
     Message(&'static str, Span),
     LexerError(String, Span),
 }
@@ -33,9 +30,6 @@ impl ToTokens for MacroError {
     #[track_caller]
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let new_tokens = match self {
-            Self::Unknown => {
-                str_and_loc_to_tokens("Unknown error while building macro", &Span::call_site())
-            }
             Self::Message(str, loc) => str_and_loc_to_tokens(str, loc),
             Self::LexerError(str, loc) => str_and_loc_to_tokens(str, loc),
         };

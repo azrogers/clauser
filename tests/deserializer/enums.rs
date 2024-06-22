@@ -6,7 +6,6 @@ use clauser::{
     de::from_str,
     error::{Error, ErrorType},
 };
-use clauser_macros::EnableDuplicateKeys;
 use serde::Deserialize;
 
 #[derive(Deserialize, PartialEq, Debug)]
