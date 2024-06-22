@@ -165,10 +165,10 @@ fn date() -> Result<(), Error> {
     expect_token("1940.1.1", TokenType::Date)?;
     expect_token("1980.08.11.1", TokenType::Date)?;
     expect_token("2031.08.00.2", TokenType::Date)?;
+    expect_token("289312.3.37817283780", TokenType::Date)?;
 
-    expect_error("val = 1930.1")?;
+    expect_error("val = 1930.1.")?;
     expect_error("val = 1930.1.3.")?;
-    expect_error("val = 10293.39.58.10292")?;
     expect_error("val = 1959..1")?;
 
     Ok(())

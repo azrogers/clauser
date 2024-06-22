@@ -1,8 +1,8 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, str::FromStr};
 
 use crate::{
     error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
-    token::{ConstructableToken, OwnedToken, Token, TokenType},
+    token::{ConstructableToken, Date, OwnedToken, Token, TokenType},
     util::text_helpers::CharHelper,
 };
 
@@ -108,14 +108,17 @@ impl<'a> Tokenizer<'a> {
             c if (c == '-' || char::is_digit(c, 10)) => {
                 // number handling
 
+                let is_negative = c == '-';
+
                 let mut num_digits = match c {
                     '-' => 0,
                     _ => 1,
                 };
 
                 let start_pos = self.position;
-                let mut found_decimal_place: usize = 0;
-                let mut has_found_decimal_place: bool = false;
+                let mut this_num_digits: usize = num_digits;
+                let mut num_decimal_places: usize = 0;
+                let mut last_decimal_index: usize = 0;
 
                 if !self.is_done() {
                     self.position = self.position + 1;
@@ -124,17 +127,26 @@ impl<'a> Tokenizer<'a> {
                 while !self.is_done() {
                     let num_c = self.chars[self.position];
                     if num_c == '.' {
-                        // 0.05.0, -.5, and .05 are all considered invalid numbers here
-                        if has_found_decimal_place || num_digits < 1 {
+                        // don't accept a 5..0 as a date
+                        if this_num_digits < 1 {
                             return Err(
                                 self.parse_error(ErrorType::TokenizerError, "unexpected char .")
                             );
+                        } else if num_decimal_places >= 1 && is_negative {
+                            // dates can't be negative
+                            return Err(self.parse_error_pos(
+                                ErrorType::TokenizerError,
+                                start_pos,
+                                "unexpected char -",
+                            ));
                         }
 
-                        found_decimal_place = self.position;
-                        has_found_decimal_place = true;
+                        this_num_digits = 0;
+                        num_decimal_places = num_decimal_places + 1;
+                        last_decimal_index = self.position;
                     } else if char::is_digit(num_c, 10) {
                         num_digits = num_digits + 1;
+                        this_num_digits = num_digits;
                     } else {
                         break;
                     }
@@ -143,9 +155,7 @@ impl<'a> Tokenizer<'a> {
                 }
 
                 // a bare - isn't allowed, and neither is 15. as a number
-                if num_digits < 1
-                    || (has_found_decimal_place && (self.position - found_decimal_place) < 2)
-                {
+                if num_digits < 1 || (num_decimal_places > 0 && this_num_digits == 0) {
                     return Err(self.parse_error_pos(
                         ErrorType::TokenizerError,
                         self.position - 1,
@@ -153,7 +163,17 @@ impl<'a> Tokenizer<'a> {
                     ));
                 }
 
-                let token = self.new_token(TokenType::Number, start_pos, self.position - start_pos);
+                let token_type = match num_decimal_places {
+                    (0..=1) => Ok(TokenType::Number),
+                    (2..=3) => Ok(TokenType::Date),
+                    _ => Err(self.parse_error_pos(
+                        ErrorType::TokenizerError,
+                        last_decimal_index,
+                        "too many decimal places in number or date",
+                    )),
+                }?;
+
+                let token = self.new_token(token_type, start_pos, self.position - start_pos);
                 Ok(Some(token))
             }
             '"' => {
@@ -245,6 +265,65 @@ impl<'a> Tokenizer<'a> {
     pub fn str_for_range(&self, range: (usize, usize)) -> &'a str {
         let (start, end) = range;
         return &self.text[start..end];
+    }
+
+    /// Returns a new [Date] created from the contents of [Token]
+    pub fn date_for_token(&self, t: &Token) -> Result<Date, Error> {
+        let mut values: [u32; 4] = [0, 0, 0, 0];
+        let mut value_index: usize = 0;
+        let mut pos = t.index;
+        let mut last_start_pos = pos;
+
+        fn to_next_val(t: &Tokenizer, start: usize, end: usize) -> Result<u32, Error> {
+            u32::from_str(t.str_for_range((start, end))).map_err(|_| {
+                t.parse_error_pos(
+                    ErrorType::InvalidNumberError,
+                    start,
+                    format!(
+                        "failed to parse number from token '{}'",
+                        &t.text[start..end]
+                    ),
+                )
+            })
+        }
+
+        while pos < t.index + t.length && value_index < 4 {
+            if self.chars[pos] == '.' {
+                let val = to_next_val(&self, last_start_pos, pos)?;
+                values[value_index] = val;
+                value_index = value_index + 1;
+                last_start_pos = pos + 1;
+            }
+
+            pos = pos + 1;
+        }
+
+        if pos - last_start_pos > 0 {
+            if pos > t.index + t.length || value_index >= 4 {
+                return Err(self.parse_error_pos(
+                    ErrorType::InvalidState,
+                    pos,
+                    "Read past end of token",
+                ));
+            }
+
+            values[value_index] = to_next_val(&self, last_start_pos, pos)?;
+        }
+
+        if pos != t.index + t.length {
+            return Err(self.parse_error_pos(
+                ErrorType::InvalidState,
+                pos,
+                "Read date but token continues?",
+            ));
+        }
+
+        return Ok(Date {
+            years: values[0],
+            months: values[1],
+            days: values[2],
+            hours: values[3],
+        });
     }
 
     /// Returns the index of the end of the line that position is on

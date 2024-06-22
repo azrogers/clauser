@@ -1,13 +1,15 @@
+use core::fmt;
+
 use serde::de::{
-    self, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
-    Visitor,
+    self, DeserializeSeed, EnumAccess, Error as SerdeError, IntoDeserializer, MapAccess, SeqAccess,
+    VariantAccess, Visitor,
 };
 use serde::Deserialize;
 
 use crate::error::{Error, ErrorType, ParseCompleteResult};
 use crate::reader::Reader;
-use crate::token::TokenType;
-use crate::types::{CollectionType, RealType};
+use crate::token::{CollectionType, RealType};
+use crate::token::{Date, TokenType};
 
 type Result<T> = ParseCompleteResult<T>;
 
@@ -64,6 +66,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
                     false => visitor.visit_i64(self.reader.parse_number(number)?),
                 }
             }
+            RealType::Date => self.deserialize_u128(visitor),
             RealType::String => self.deserialize_string(visitor),
             RealType::Identifier => self.deserialize_identifier(visitor),
             RealType::ObjectOrArray => match self.reader.try_discern_array_or_map()? {
@@ -137,6 +140,13 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         visitor.visit_u64(self.reader.read_number()?)
+    }
+
+    fn deserialize_u128<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_u128(self.reader.read_date()?.into())
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value>
@@ -230,13 +240,13 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         self.reader.begin_collection()?;
-        let value = visitor.visit_seq(ArrayValue::new(self))?;
+        let value = visitor.visit_seq(ArrayAccessor::new(self))?;
         self.reader.end_collection()?;
 
         Ok(value)
     }
 
-    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value>
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
@@ -266,7 +276,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
             self.started_base_struct = true;
         }
 
-        let value = visitor.visit_map(MapValue::new(self))?;
+        let value = visitor.visit_map(MapAccessor::new(self))?;
 
         if had_started {
             self.reader.end_collection()?;
@@ -308,7 +318,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
                 if variants.contains(&str) {
                     visitor.visit_enum(self.reader.read_string()?.into_deserializer())
                 } else {
-                    visitor.visit_enum(Enum::new(self))
+                    visitor.visit_enum(EnumAccessor::new(self))
                 }
             }
             RealType::ObjectOrArray => {
@@ -316,7 +326,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
 
                 match collection_type {
                     Some(_) => {
-                        let value = visitor.visit_enum(Enum::new(self))?;
+                        let value = visitor.visit_enum(EnumAccessor::new(self))?;
                         Ok(value)
                     }
                     None => Err(self
@@ -324,7 +334,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
                         .parse_error(ErrorType::InvalidValue, "expected enum value, found EOF")),
                 }
             }
-            _ => visitor.visit_enum(Enum::new(self)),
+            _ => visitor.visit_enum(EnumAccessor::new(self)),
         }
     }
 
@@ -343,26 +353,26 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
     }
 }
 
-struct ArrayValue<'a, 'de: 'a> {
+struct ArrayAccessor<'a, 'de: 'a> {
     de: &'a mut Deserializer<'de>,
 }
 
-impl<'a, 'de> ArrayValue<'a, 'de> {
+impl<'a, 'de> ArrayAccessor<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>) -> Self {
-        ArrayValue { de }
+        ArrayAccessor { de }
     }
 }
-struct MapValue<'a, 'de: 'a> {
+struct MapAccessor<'a, 'de: 'a> {
     de: &'a mut Deserializer<'de>,
 }
 
-impl<'a, 'de> MapValue<'a, 'de> {
+impl<'a, 'de> MapAccessor<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>) -> Self {
-        MapValue { de }
+        MapAccessor { de }
     }
 }
 
-impl<'de, 'a> SeqAccess<'de> for ArrayValue<'a, 'de> {
+impl<'de, 'a> SeqAccess<'de> for ArrayAccessor<'a, 'de> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
@@ -378,7 +388,7 @@ impl<'de, 'a> SeqAccess<'de> for ArrayValue<'a, 'de> {
     }
 }
 
-impl<'de, 'a> MapAccess<'de> for MapValue<'a, 'de> {
+impl<'de, 'a> MapAccess<'de> for MapAccessor<'a, 'de> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
@@ -403,17 +413,17 @@ impl<'de, 'a> MapAccess<'de> for MapValue<'a, 'de> {
     }
 }
 
-struct Enum<'a, 'de: 'a> {
+struct EnumAccessor<'a, 'de: 'a> {
     de: &'a mut Deserializer<'de>,
 }
 
-impl<'a, 'de> Enum<'a, 'de> {
+impl<'a, 'de> EnumAccessor<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>) -> Self {
-        Enum { de }
+        EnumAccessor { de }
     }
 }
 
-impl<'de, 'a> EnumAccess<'de> for Enum<'a, 'de> {
+impl<'de, 'a> EnumAccess<'de> for EnumAccessor<'a, 'de> {
     type Error = Error;
     type Variant = Self;
 
@@ -426,7 +436,7 @@ impl<'de, 'a> EnumAccess<'de> for Enum<'a, 'de> {
     }
 }
 
-impl<'de, 'a> VariantAccess<'de> for Enum<'a, 'de> {
+impl<'de, 'a> VariantAccess<'de> for EnumAccessor<'a, 'de> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<()> {
@@ -457,3 +467,125 @@ impl<'de, 'a> VariantAccess<'de> for Enum<'a, 'de> {
         de::Deserializer::deserialize_map(self.de, visitor)
     }
 }
+
+/*
+impl<'de> Deserialize<'de> for Date {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.
+    }
+}
+
+struct DateVisitor<'a>(&'a Date);
+
+impl<'a, 'de: 'a> Visitor<'de> for DateVisitor<'a> {
+    type Value = Date;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "a Date")
+    }
+
+    fn visit_u128<E>(self, _: u128) -> std::result::Result<Date, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(*self.0)
+    }
+}
+
+struct DateSingleSeed<'a, 'de: 'a>(&'a mut Deserializer<'de>);
+
+impl<'a, 'de> DeserializeSeed<'de> for DateSingleSeed<'a, 'de> {
+    type Value = Date;
+
+    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let date = self
+            .0
+            .reader
+            .read_date()
+            .map_err(|e| de::Error::custom(format!("error {:?} while reading Date", e)))?;
+
+        deserializer.deserialize_u128(DateVisitor(&date))
+    }
+}
+
+struct DateAccessor {
+    date: Date,
+}
+
+impl<'de, 'a> VariantAccess<'de> for DateAccessor {
+    type Error = Error;
+
+    fn unit_variant(self) -> std::result::Result<(), Self::Error> {
+        unimplemented!()
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> std::result::Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        unimplemented!()
+    }
+
+    fn tuple_variant<V>(self, len: usize, visitor: V) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        assert!(len == 4);
+        Ok((
+            self.date.years,
+            self.date.months,
+            self.date.days,
+            self.date.hours,
+        ))
+    }
+
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        unimplemented!()
+    }
+}
+
+impl<'a, 'de: 'a> DateAccessor<'a, 'de> {
+    fn new(de: &'a mut Deserializer<'de>) -> Self {
+        DateAccessor {
+            de,
+            contents: date.into(),
+            index: 0,
+        }
+    }
+}
+
+impl<'a, 'de: 'a, T> SeqAccess<'de> for DateAccessor<'a, 'de> {
+    type Error = Error;
+
+    fn next_element_seed(&mut self, seed: T) -> std::result::Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        if self.index >= 4 {
+            // out of date fields to return
+            return Ok(None);
+        }
+
+        self.index = self.index + 1;
+
+        seed.deserialize(&mut *self.de).map(Some)
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        Some(4 - self.index)
+    }
+}
+*/

@@ -5,6 +5,7 @@ use super::util::{expect_error, expect_str, SingleContainer};
 use clauser::{
     de::from_str,
     error::{Error, ErrorType},
+    token::Date,
 };
 use serde::Deserialize;
 
@@ -142,9 +143,9 @@ pub fn significant_newlines() -> Result<(), Error> {
 
 #[test]
 pub fn dates() -> Result<(), Error> {
-    SingleContainer::<(u32, u32, u32, u32)>::expect("val = 1940.1.1.18", (1940, 1, 1, 18))?;
-    SingleContainer::<(u16, u8, u8, u8)>::expect("val = 1933.11.4", (1933, 11, 4, 0))?;
-    SingleContainer::<(u16, u8, u8, u8)>::expect("val = 1033.08.2.30", (1033, 8, 2, 30))?;
+    SingleContainer::<Date>::expect("val = 1940.1.1.18", Date::new(1940, 1, 1, 18))?;
+    SingleContainer::<Date>::expect("val = 1933.11.4", Date::new(1933, 11, 4, 0))?;
+    SingleContainer::<Date>::expect("val = 1033.08.2.30", Date::new(1033, 8, 2, 30))?;
 
     Ok(())
 }

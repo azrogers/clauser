@@ -1,4 +1,4 @@
-use clauser::{error::Error, value::Value};
+use clauser::{error::Error, token::Date, value::Value};
 
 pub fn single_equal(source: &str, expected: Value, desc: &str) -> Result<(), Error> {
     assert_eq!(
@@ -22,6 +22,11 @@ pub fn parse_primitives() -> Result<(), Error> {
         "identifier parsing",
     )?;
     single_equal("val = yes", Value::Boolean(true), "boolean parsing")?;
+    single_equal(
+        "val = 1940.1.1.15",
+        Value::Date(Date::new(1940, 1, 1, 15)),
+        "date parsing",
+    )?;
 
     Ok(())
 }

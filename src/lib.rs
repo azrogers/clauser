@@ -3,7 +3,6 @@ pub mod reader;
 pub mod schema;
 pub mod token;
 pub mod tokenizer;
-pub mod types;
 pub mod value;
 
 mod util;

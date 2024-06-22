@@ -1,8 +1,7 @@
 use crate::{
     error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
-    token::{Token, TokenType},
+    token::{CollectionType, Date, RealType, Token, TokenType},
     tokenizer::Tokenizer,
-    types::{CollectionType, RealType},
 };
 use std::str::FromStr;
 
@@ -181,6 +180,12 @@ impl<'a> Reader<'a> {
                 ))
             }
         }
+    }
+
+    /// Reads a [Date] from the token stream, if available.
+    pub fn read_date(&mut self) -> Result<Date, Error> {
+        let token = self.expect_token(TokenType::Date)?;
+        self.tokenizer.date_for_token(&token)
     }
 
     /// Reads a boolean from the token stream, if available.

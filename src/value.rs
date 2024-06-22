@@ -1,10 +1,11 @@
 use std::borrow::{Borrow, Cow};
 use std::fmt::Debug;
 
+use crate::token::Date;
 use crate::{
     error::Error,
     reader::Reader,
-    types::{CollectionType, RealType},
+    token::{CollectionType, RealType},
 };
 
 /// A variant that represents a Clausewitz source file as a tree of types and values.
@@ -25,6 +26,7 @@ where
     Integer(i64),
     Decimal(f64),
     Boolean(bool),
+    Date(Date),
     String(T),
     Identifier(T),
     Object(Vec<(T, ValueBase<T>)>),
@@ -50,6 +52,7 @@ where
             ValueBase::Integer(v) => ValueOwned::Integer(*v),
             ValueBase::Decimal(v) => ValueOwned::Decimal(*v),
             ValueBase::Boolean(v) => ValueOwned::Boolean(*v),
+            ValueBase::Date(v) => ValueOwned::Date(*v),
             ValueBase::String(v) => ValueOwned::String(v.into()),
             ValueBase::Identifier(v) => ValueOwned::Identifier(v.into()),
             ValueBase::Array(v) => ValueOwned::Array(v.into_iter().map(|v| v.to_owned()).collect()),
@@ -98,6 +101,7 @@ where
                     false => Self::Integer(reader.parse_number(number)?),
                 }
             }),
+            RealType::Date => Ok(Self::Date(reader.read_date()?)),
             RealType::ObjectOrArray => {
                 let collection_type = reader.try_discern_array_or_map()?;
 
