@@ -24,7 +24,7 @@ struct CountryScope {
   characters: Vec<String>
 }
 
-type DirectiveResult = Result<Option<Vec<ExecutionUnit>>, ParseError>;
+type DirectiveResult = Result<Option<Vec<ExecutionUnit>>, Error>;
 
 // these would be compiled by macro into Directive structs
 
@@ -59,7 +59,7 @@ impl ScriptReader for CountryHistoryReader {
   // the applicable directives to reading this script
   type Directives = CountryHistoryDirectives;
 
-  fn read(reader: &Reader) -> Result<Vec<ExecutionUnit>, ParseError> {
+  fn read(reader: &Reader) -> Result<Vec<ExecutionUnit>, Error> {
     // turn blocks of directives into execution units based on what can run together.
     // triggers get turned into their own execution units with their dependencies (trigger conditions) listed in the execution unit.
     // execution units can return other execution units, until the whole thing is read.

@@ -4,7 +4,7 @@ use serde::de::{
 };
 use serde::Deserialize;
 
-use crate::parse_error::{ParseCompleteResult, ParseError, ParseErrorType};
+use crate::error::{Error, ErrorType, ParseCompleteResult};
 use crate::reader::Reader;
 use crate::token::TokenType;
 use crate::types::{CollectionType, RealType};
@@ -38,7 +38,7 @@ where
 }
 
 impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
-    type Error = ParseError;
+    type Error = Error;
 
     // Look at the input data to decide what Serde data model type to
     // deserialize as. Not all data formats are able to support this operation.
@@ -206,7 +206,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
             true => visitor.visit_none(),
             false => Err(self
                 .reader
-                .parse_error(ParseErrorType::InvalidType, "expected unit, found value")),
+                .parse_error(ErrorType::InvalidType, "expected unit, found value")),
         }
     }
 
@@ -319,10 +319,9 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
                         let value = visitor.visit_enum(Enum::new(self))?;
                         Ok(value)
                     }
-                    None => Err(self.reader.parse_error(
-                        ParseErrorType::InvalidValue,
-                        "expected enum value, found {}",
-                    )),
+                    None => Err(self
+                        .reader
+                        .parse_error(ErrorType::InvalidValue, "expected enum value, found EOF")),
                 }
             }
             _ => visitor.visit_enum(Enum::new(self)),
@@ -364,7 +363,7 @@ impl<'a, 'de> MapValue<'a, 'de> {
 }
 
 impl<'de, 'a> SeqAccess<'de> for ArrayValue<'a, 'de> {
-    type Error = ParseError;
+    type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
     where
@@ -380,7 +379,7 @@ impl<'de, 'a> SeqAccess<'de> for ArrayValue<'a, 'de> {
 }
 
 impl<'de, 'a> MapAccess<'de> for MapValue<'a, 'de> {
-    type Error = ParseError;
+    type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
     where
@@ -415,7 +414,7 @@ impl<'a, 'de> Enum<'a, 'de> {
 }
 
 impl<'de, 'a> EnumAccess<'de> for Enum<'a, 'de> {
-    type Error = ParseError;
+    type Error = Error;
     type Variant = Self;
 
     fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
@@ -428,11 +427,11 @@ impl<'de, 'a> EnumAccess<'de> for Enum<'a, 'de> {
 }
 
 impl<'de, 'a> VariantAccess<'de> for Enum<'a, 'de> {
-    type Error = ParseError;
+    type Error = Error;
 
     fn unit_variant(self) -> Result<()> {
         Err(self.de.reader.parse_error(
-            ParseErrorType::UnexpectedTokenError,
+            ErrorType::UnexpectedTokenError,
             String::from("expected string"),
         ))
     }

@@ -1,5 +1,5 @@
 use clauser::{
-    parse_error::{ParseError, ParseErrorType},
+    error::{Error, ErrorType},
     token::{OwnedToken, TokenType},
     tokenizer::Tokenizer,
 };
@@ -40,7 +40,7 @@ fn assert_vec_equal(tokens: &Vec<OwnedToken>, expected: &Vec<ExpectedToken>) {
     }
 }
 
-fn expect_error(text: &str) -> Result<(), ParseError> {
+fn expect_error(text: &str) -> Result<(), Error> {
     let tokens = Tokenizer::parse_all(text);
     assert!(
         tokens.is_err(),
@@ -49,7 +49,7 @@ fn expect_error(text: &str) -> Result<(), ParseError> {
     );
     match tokens {
         Ok(_) => Ok(()),
-        Err(e) => match e.error_type == ParseErrorType::TokenizerError {
+        Err(e) => match e.error_type == ErrorType::TokenizerError {
             true => Ok(()),
             false => Err(e),
         },
@@ -60,7 +60,7 @@ fn expect_token_and_value(
     text: &str,
     expected_type: TokenType,
     expected_value: &str,
-) -> Result<(), ParseError> {
+) -> Result<(), Error> {
     let tokens = Tokenizer::parse_all(text)?;
     assert_eq!(
         tokens.len(),
@@ -74,8 +74,13 @@ fn expect_token_and_value(
     Ok(())
 }
 
+// verifies that the text matches the token and that it's the right type
+fn expect_token(text: &str, expected_type: TokenType) -> Result<(), Error> {
+    expect_token_and_value(text, expected_type, text)
+}
+
 #[test]
-fn basic_number() -> Result<(), ParseError> {
+fn number() -> Result<(), Error> {
     expect_token_and_value("100", TokenType::Number, "100")?;
     expect_token_and_value("-100", TokenType::Number, "-100")?;
     expect_token_and_value("3019.29", TokenType::Number, "3019.29")?;
@@ -97,17 +102,28 @@ fn basic_number() -> Result<(), ParseError> {
 }
 
 #[test]
-fn basic_identifier_boolean() -> Result<(), ParseError> {
+fn boolean() -> Result<(), Error> {
     expect_token_and_value("yes", TokenType::Boolean, "yes")?;
     expect_token_and_value("no", TokenType::Boolean, "no")?;
-    expect_token_and_value("test", TokenType::Identifier, "test")?;
-    expect_token_and_value("_a_longer_test", TokenType::Identifier, "_a_longer_test")?;
 
     Ok(())
 }
 
 #[test]
-fn basic_string() -> Result<(), ParseError> {
+fn identifier() -> Result<(), Error> {
+    expect_token_and_value("test", TokenType::Identifier, "test")?;
+    expect_token_and_value("_a_longer_test", TokenType::Identifier, "_a_longer_test")?;
+    expect_token_and_value(
+        "test:with:colons",
+        TokenType::Identifier,
+        "test:with:colons",
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn string() -> Result<(), Error> {
     expect_token_and_value("\"str\"", TokenType::String, "str")?;
     expect_token_and_value(
         "\"this is\na multi line string\"",
@@ -131,9 +147,8 @@ fn basic_string() -> Result<(), ParseError> {
 }
 
 #[test]
-fn basic_symbols() -> Result<(), ParseError> {
+fn symbols() -> Result<(), Error> {
     expect_token_and_value("=", TokenType::Equals, "=")?;
-    expect_token_and_value(":", TokenType::Colon, ":")?;
     expect_token_and_value("{", TokenType::OpenBracket, "{")?;
     expect_token_and_value("}", TokenType::CloseBracket, "}")?;
     expect_token_and_value(">", TokenType::GreaterThan, ">")?;
@@ -146,7 +161,21 @@ fn basic_symbols() -> Result<(), ParseError> {
 }
 
 #[test]
-fn iterator() -> Result<(), ParseError> {
+fn date() -> Result<(), Error> {
+    expect_token("1940.1.1", TokenType::Date)?;
+    expect_token("1980.08.11.1", TokenType::Date)?;
+    expect_token("2031.08.00.2", TokenType::Date)?;
+
+    expect_error("val = 1930.1")?;
+    expect_error("val = 1930.1.3.")?;
+    expect_error("val = 10293.39.58.10292")?;
+    expect_error("val = 1959..1")?;
+
+    Ok(())
+}
+
+#[test]
+fn iterator() -> Result<(), Error> {
     let tokens = Tokenizer::parse_all("{ property = \"test\" } # comment\n82.3 > 1 >= 0")?;
     let expected = vec![
         ExpectedToken(TokenType::OpenBracket, "{"),
@@ -163,3 +192,9 @@ fn iterator() -> Result<(), ParseError> {
     assert_vec_equal(&tokens, &expected);
     Ok(())
 }
+
+#[test]
+fn error_context() {}
+
+#[test]
+fn error_cases() {}

@@ -7,7 +7,7 @@ use serde::{
     Serialize,
 };
 
-use crate::text_helpers::{count_tabs_before, CharHelper, StringBuilder};
+use super::text_helpers::{count_tabs_before, CharHelper, StringBuilder};
 
 const ERROR_CONTEXT_MAX_LINES: usize = 5;
 
@@ -30,7 +30,7 @@ fn unexpected_to_string(unexp: &Unexpected) -> String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub enum ParseErrorType {
+pub enum ErrorType {
     /// Failed to tokenize string.
     TokenizerError,
     /// An operation was attempted that doesn't match the parser's internal state - for example, calling
@@ -66,16 +66,16 @@ pub enum ParseErrorType {
     DuplicateField,
 }
 
-pub struct ParseErrorContext {
+pub struct ErrorContext {
     /// The lines leading up to and including the line the error was on.
     lines: Vec<String>,
     /// The position transformed into a (line, col) pair.
     location: (usize, usize),
 }
 
-impl ParseErrorContext {
-    pub fn new(lines: Vec<String>, location: (usize, usize)) -> ParseErrorContext {
-        ParseErrorContext { lines, location }
+impl ErrorContext {
+    pub fn new(lines: Vec<String>, location: (usize, usize)) -> ErrorContext {
+        ErrorContext { lines, location }
     }
 
     pub fn from_chars(
@@ -83,7 +83,7 @@ impl ParseErrorContext {
         chars: &Vec<char>,
         position: usize,
         max_lines: usize,
-    ) -> ParseErrorContext {
+    ) -> ErrorContext {
         let helper = CharHelper(chars);
 
         let lines = helper
@@ -94,30 +94,30 @@ impl ParseErrorContext {
 
         let location = helper.position_to_line_col(position);
 
-        ParseErrorContext { lines, location }
+        ErrorContext { lines, location }
     }
 }
 
-pub trait ParseErrorContextProvider {
+pub trait ErrorContextProvider {
     /// Returns the line that the given position is on as well as up to `max_lines` previous lines.
-    fn get_line_context(&self, position: usize, max_lines: usize) -> Option<ParseErrorContext>;
+    fn get_line_context(&self, position: usize, max_lines: usize) -> Option<ErrorContext>;
 }
 
-pub struct ParseError {
-    pub error_type: ParseErrorType,
+pub struct Error {
+    pub error_type: ErrorType,
     pub position: Option<usize>,
     pub message: String,
-    context: Option<ParseErrorContext>,
+    context: Option<ErrorContext>,
 }
 
-impl ParseError {
+impl Error {
     pub fn new(
-        context: Option<&impl ParseErrorContextProvider>,
-        error_type: ParseErrorType,
+        context: Option<&impl ErrorContextProvider>,
+        error_type: ErrorType,
         position: usize,
         message: impl ToString,
-    ) -> ParseError {
-        ParseError {
+    ) -> Error {
+        Error {
             error_type,
             position: Some(position),
             message: message.to_string(),
@@ -125,8 +125,8 @@ impl ParseError {
         }
     }
 
-    pub fn new_unanchored(error_type: ParseErrorType, message: impl ToString) -> ParseError {
-        ParseError {
+    pub fn new_unanchored(error_type: ErrorType, message: impl ToString) -> Error {
+        Error {
             error_type,
             position: None,
             message: message.to_string(),
@@ -134,12 +134,8 @@ impl ParseError {
         }
     }
 
-    pub fn with_context(
-        &self,
-        context: &impl ParseErrorContextProvider,
-        position: usize,
-    ) -> ParseError {
-        ParseError {
+    pub fn with_context(&self, context: &impl ErrorContextProvider, position: usize) -> Error {
+        Error {
             error_type: self.error_type.clone(),
             position: Some(position),
             context: context.get_line_context(position, ERROR_CONTEXT_MAX_LINES),
@@ -148,12 +144,12 @@ impl ParseError {
     }
 }
 
-impl Debug for ParseError {
+impl Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.position.is_none() {
             return write!(
                 f,
-                "ParseErrorType::{:?} encountered at an unknown position: {}",
+                "ErrorType::{:?} encountered at an unknown position: {}",
                 self.error_type, self.message
             );
         }
@@ -207,20 +203,20 @@ impl Debug for ParseError {
 
             return write!(
                 f,
-                "ParseErrorType::{:?} encountered at line {} column {}: {}",
+                "ErrorType::{:?} encountered at line {} column {}: {}",
                 self.error_type, line, col, self.message
             );
         }
 
         write!(
             f,
-            "ParseErrorType::{:?} encountered at index {}: {}",
+            "ErrorType::{:?} encountered at index {}: {}",
             self.error_type, position, self.message
         )
     }
 }
 
-impl serde::Serialize for ParseError {
+impl serde::Serialize for Error {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: ser::Serializer,
@@ -241,7 +237,7 @@ impl serde::Serialize for ParseError {
     }
 }
 
-impl fmt::Display for ParseError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -254,16 +250,16 @@ impl fmt::Display for ParseError {
     }
 }
 
-impl std::error::Error for ParseError {}
+impl std::error::Error for Error {}
 
-impl de::Error for ParseError {
+impl de::Error for Error {
     fn custom<T: Display>(msg: T) -> Self {
-        ParseError::new_unanchored(ParseErrorType::Unknown, msg.to_string())
+        Error::new_unanchored(ErrorType::Unknown, msg.to_string())
     }
 
     fn invalid_type(unexp: Unexpected, exp: &dyn Expected) -> Self {
-        ParseError::new_unanchored(
-            ParseErrorType::InvalidType,
+        Error::new_unanchored(
+            ErrorType::InvalidType,
             format!(
                 "invalid type: {}, expected {}",
                 unexpected_to_string(&unexp),
@@ -273,8 +269,8 @@ impl de::Error for ParseError {
     }
 
     fn invalid_value(unexp: Unexpected, exp: &dyn Expected) -> Self {
-        ParseError::new_unanchored(
-            ParseErrorType::InvalidValue,
+        Error::new_unanchored(
+            ErrorType::InvalidValue,
             format!(
                 "invalid value: {}, expected {}",
                 unexpected_to_string(&unexp),
@@ -284,8 +280,8 @@ impl de::Error for ParseError {
     }
 
     fn invalid_length(len: usize, exp: &dyn Expected) -> Self {
-        ParseError::new_unanchored(
-            ParseErrorType::InvalidLength,
+        Error::new_unanchored(
+            ErrorType::InvalidLength,
             format!("invalid length {}, expected {}", len, exp),
         )
     }
@@ -300,7 +296,7 @@ impl de::Error for ParseError {
             ),
         };
 
-        ParseError::new_unanchored(ParseErrorType::UnknownVariant, message)
+        Error::new_unanchored(ErrorType::UnknownVariant, message)
     }
 
     fn unknown_field(field: &str, expected: &'static [&'static str]) -> Self {
@@ -313,23 +309,23 @@ impl de::Error for ParseError {
             ),
         };
 
-        ParseError::new_unanchored(ParseErrorType::UnknownField, message)
+        Error::new_unanchored(ErrorType::UnknownField, message)
     }
 
     fn missing_field(field: &'static str) -> Self {
-        ParseError::new_unanchored(
-            ParseErrorType::MissingField,
+        Error::new_unanchored(
+            ErrorType::MissingField,
             format!("missing field {} in input", field),
         )
     }
 
     fn duplicate_field(field: &'static str) -> Self {
-        ParseError::new_unanchored(
-            ParseErrorType::DuplicateField,
+        Error::new_unanchored(
+            ErrorType::DuplicateField,
             format!("duplicate field {} in input", field),
         )
     }
 }
 
-pub type ParseResult<T> = Result<Option<T>, ParseError>;
-pub type ParseCompleteResult<T> = Result<T, ParseError>;
+pub type ParseResult<T> = Result<Option<T>, Error>;
+pub type ParseCompleteResult<T> = Result<T, Error>;

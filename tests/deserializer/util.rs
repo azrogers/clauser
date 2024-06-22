@@ -2,8 +2,8 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 
-use super::deserializer::de::from_str;
-use super::parse_error::{ParseError, ParseErrorType};
+use clauser::de::from_str;
+use clauser::error::{Error, ErrorType};
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct SingleContainer<T: Debug + PartialEq> {
@@ -18,13 +18,13 @@ where
         SingleContainer { val }
     }
 
-    pub fn expect(text: &'a str, expected: T) -> Result<(), ParseError> {
+    pub fn expect(text: &'a str, expected: T) -> Result<(), Error> {
         assert_eq!(from_str::<SingleContainer<T>>(text)?.val, expected);
         Ok(())
     }
 }
 
-pub fn expect_str<'a, T: Debug + PartialEq>(text: &'a str, expected: T) -> Result<(), ParseError>
+pub fn expect_str<'a, T: Debug + PartialEq>(text: &'a str, expected: T) -> Result<(), Error>
 where
     T: Deserialize<'a>,
 {
@@ -34,8 +34,8 @@ where
 
 pub fn expect_error<T: for<'a> Deserialize<'a> + std::fmt::Debug>(
     source: &str,
-    expected_error: ParseErrorType,
-) -> Result<(), ParseError> {
+    expected_error: ErrorType,
+) -> Result<(), Error> {
     let result = from_str::<T>(source);
     assert!(
         result.is_err(),

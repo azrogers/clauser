@@ -1,12 +1,10 @@
 use std::fmt::Debug;
 
-#[cfg(test)]
-use clauser::test::{expect_error, SingleContainer};
+use super::util::{expect_error, expect_str, SingleContainer};
 
 use clauser::{
-    deserializer::de::from_str,
-    parse_error::{ParseError, ParseErrorType},
-    test::expect_str,
+    de::from_str,
+    error::{Error, ErrorType},
 };
 use serde::Deserialize;
 
@@ -20,7 +18,7 @@ struct BasicKeyValue {
 }
 
 #[test]
-fn basic_key_value() -> Result<(), ParseError> {
+fn basic_key_value() -> Result<(), Error> {
     let source = "
 	bool_val = yes
 	int_val = -193
@@ -35,8 +33,8 @@ fn basic_key_value() -> Result<(), ParseError> {
     assert_eq!(deserialized.str_val, "hello world!");
     assert_eq!(deserialized.id_val, "ident");
 
-    expect_error::<BasicKeyValue>("bool_val = yes", ParseErrorType::MissingField)?;
-    expect_error::<BasicKeyValue>("bool_val = 18", ParseErrorType::UnexpectedTokenError)?;
+    expect_error::<BasicKeyValue>("bool_val = yes", ErrorType::MissingField)?;
+    expect_error::<BasicKeyValue>("bool_val = 18", ErrorType::UnexpectedTokenError)?;
 
     Ok(())
 }
@@ -47,7 +45,7 @@ struct NestedKeyValue {
 }
 
 #[test]
-fn nested_key_value() -> Result<(), ParseError> {
+fn nested_key_value() -> Result<(), Error> {
     let source = "
 	obj = {
 		bool_val = no
@@ -64,18 +62,15 @@ fn nested_key_value() -> Result<(), ParseError> {
     assert_eq!(deserialized.obj.str_val, "test");
     assert_eq!(deserialized.obj.id_val, "none");
 
-    expect_error::<NestedKeyValue>("obj = 18", ParseErrorType::UnexpectedTokenError)?;
-    expect_error::<NestedKeyValue>("obj = {}", ParseErrorType::MissingField)?;
-    expect_error::<NestedKeyValue>(
-        "obj = { bool_val = 18 }",
-        ParseErrorType::UnexpectedTokenError,
-    )?;
+    expect_error::<NestedKeyValue>("obj = 18", ErrorType::UnexpectedTokenError)?;
+    expect_error::<NestedKeyValue>("obj = {}", ErrorType::MissingField)?;
+    expect_error::<NestedKeyValue>("obj = { bool_val = 18 }", ErrorType::UnexpectedTokenError)?;
 
     Ok(())
 }
 
 #[test]
-fn primitive_array() -> Result<(), ParseError> {
+fn primitive_array() -> Result<(), Error> {
     assert_eq!(
         from_str::<SingleContainer<Vec<i32>>>("val = { 8 -10 20 30000 49982 0 }")?.val,
         vec![8, -10, 20, 30000, 49982, 0]
@@ -87,15 +82,15 @@ fn primitive_array() -> Result<(), ParseError> {
 
     expect_error::<SingleContainer<Vec<i32>>>(
         "val = { 10.0 93 -1 }",
-        ParseErrorType::InvalidNumberError,
+        ErrorType::InvalidNumberError,
     )?;
     expect_error::<SingleContainer<Vec<i32>>>(
         "val = { \"test\" }",
-        ParseErrorType::UnexpectedTokenError,
+        ErrorType::UnexpectedTokenError,
     )?;
     expect_error::<SingleContainer<Vec<i32>>>(
         "val = { 18 test }",
-        ParseErrorType::UnexpectedTokenError,
+        ErrorType::UnexpectedTokenError,
     )?;
 
     Ok(())
@@ -107,7 +102,7 @@ struct StringField {
 }
 
 #[test]
-pub fn empty_string() -> Result<(), ParseError> {
+pub fn empty_string() -> Result<(), Error> {
     SingleContainer::<String>::expect("val = ", String::new())?;
     SingleContainer::<StringField>::expect("val = { str = }", StringField { str: String::new() })?;
 
@@ -123,13 +118,15 @@ struct MultiStringField {
 }
 
 #[test]
-pub fn significant_newlines() -> Result<(), ParseError> {
+pub fn significant_newlines() -> Result<(), Error> {
     let source = "
 		str1 = 
 		str2 = test
 		str3 =
 		str4 = test";
 
+    // todo: is this actually the behavior we want?
+    // todo: should identifier values even be *able* to be empty or should that only be options?
     expect_str::<MultiStringField>(
         source,
         MultiStringField {
@@ -139,6 +136,15 @@ pub fn significant_newlines() -> Result<(), ParseError> {
             str4: String::from("test"),
         },
     )?;
+
+    Ok(())
+}
+
+#[test]
+pub fn dates() -> Result<(), Error> {
+    SingleContainer::<(u32, u32, u32, u32)>::expect("val = 1940.1.1.18", (1940, 1, 1, 18))?;
+    SingleContainer::<(u16, u8, u8, u8)>::expect("val = 1933.11.4", (1933, 11, 4, 0))?;
+    SingleContainer::<(u16, u8, u8, u8)>::expect("val = 1033.08.2.30", (1033, 8, 2, 30))?;
 
     Ok(())
 }

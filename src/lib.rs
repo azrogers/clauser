@@ -1,8 +1,15 @@
-pub mod deserializer;
-pub mod parse_error;
+pub mod de;
 pub mod reader;
-pub mod test;
-pub mod text_helpers;
+pub mod schema;
 pub mod token;
 pub mod tokenizer;
 pub mod types;
+pub mod value;
+
+mod util;
+
+pub mod error {
+    pub use super::util::error::{
+        Error, ErrorContext, ErrorContextProvider, ErrorType, ParseCompleteResult, ParseResult,
+    };
+}

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::token::TokenType;
 
 /// Types that are actually differentiable purely from tokens.

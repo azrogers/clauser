@@ -1,11 +1,9 @@
 use std::marker::PhantomData;
 
 use crate::{
-    parse_error::{
-        ParseError, ParseErrorContext, ParseErrorContextProvider, ParseErrorType, ParseResult,
-    },
-    text_helpers::CharHelper,
+    error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
     token::{ConstructableToken, OwnedToken, Token, TokenType},
+    util::text_helpers::CharHelper,
 };
 
 const COMMENT_CHAR: char = '#';
@@ -28,9 +26,9 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Parses every token in the input text and returns them in a vector.
-    pub fn parse_all(text: &str) -> Result<Vec<OwnedToken>, ParseError> {
+    pub fn parse_all(text: &str) -> Result<Vec<OwnedToken>, Error> {
         let mut tokenizer = Tokenizer::new(text);
-        let tokens: Result<Vec<OwnedToken>, ParseError> = tokenizer.iter_owned().collect();
+        let tokens: Result<Vec<OwnedToken>, Error> = tokenizer.iter_owned().collect();
         Ok(tokens?)
     }
 
@@ -54,22 +52,22 @@ impl<'a> Tokenizer<'a> {
         TokenIterator::new(self)
     }
 
-    /// Creates a new iterator that returns `Token` objects.
+    /// Creates a new iterator that returns [Token] objects.
     pub fn iter(&'a mut self) -> TokenIterator<Token> {
         self.iter_generic()
     }
 
-    /// Creates a new iterator that returns `OwnedToken` objects.
+    /// Creates a new iterator that returns [OwnedToken] objects.
     pub fn iter_owned(&'a mut self) -> TokenIterator<OwnedToken> {
         self.iter_generic()
     }
 
-    /// Obtains the next `Token` from the character stream, advancing the internal position.
+    /// Obtains the next [Token] from the character stream, advancing the internal position.
     pub fn next(&mut self) -> ParseResult<Token> {
         self.next_generic()
     }
 
-    /// Obtains the next `OwnedToken` from the character stream, advancing the internal position.
+    /// Obtains the next [OwnedToken] from the character stream, advancing the internal position.
     pub fn next_owned(&mut self) -> ParseResult<OwnedToken> {
         self.next_generic()
     }
@@ -93,7 +91,6 @@ impl<'a> Tokenizer<'a> {
 
         match c {
             '=' => Ok(Some(self.new_token_incr(TokenType::Equals, 1))),
-            ':' => Ok(Some(self.new_token_incr(TokenType::Colon, 1))),
             '{' => Ok(Some(self.new_token_incr(TokenType::OpenBracket, 1))),
             '}' => Ok(Some(self.new_token_incr(TokenType::CloseBracket, 1))),
             '>' => Ok(Some(match self.is_next_char('=') {
@@ -106,7 +103,7 @@ impl<'a> Tokenizer<'a> {
             })),
             '?' => match self.is_next_char('=') {
                 true => Ok(Some(self.new_token_incr(TokenType::ExistenceCheck, 2))),
-                false => Err(self.parse_error(ParseErrorType::TokenizerError, "unexpected char ?")),
+                false => Err(self.parse_error(ErrorType::TokenizerError, "unexpected char ?")),
             },
             c if (c == '-' || char::is_digit(c, 10)) => {
                 // number handling
@@ -129,8 +126,9 @@ impl<'a> Tokenizer<'a> {
                     if num_c == '.' {
                         // 0.05.0, -.5, and .05 are all considered invalid numbers here
                         if has_found_decimal_place || num_digits < 1 {
-                            return Err(self
-                                .parse_error(ParseErrorType::TokenizerError, "unexpected char ."));
+                            return Err(
+                                self.parse_error(ErrorType::TokenizerError, "unexpected char .")
+                            );
                         }
 
                         found_decimal_place = self.position;
@@ -149,7 +147,7 @@ impl<'a> Tokenizer<'a> {
                     || (has_found_decimal_place && (self.position - found_decimal_place) < 2)
                 {
                     return Err(self.parse_error_pos(
-                        ParseErrorType::TokenizerError,
+                        ErrorType::TokenizerError,
                         self.position - 1,
                         "unexpected end of number",
                     ));
@@ -170,7 +168,7 @@ impl<'a> Tokenizer<'a> {
 
                 match self.is_done() {
                     true => Err(self.parse_error(
-                        ParseErrorType::TokenizerError,
+                        ErrorType::TokenizerError,
                         "unexpected EOF while reading string",
                     )),
                     false => {
@@ -184,12 +182,13 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
             }
-            c if c == '_' || c.is_alphanumeric() => {
+            c if c == '_' || c.is_alphabetic() => {
                 let start_pos = self.position;
                 loop {
                     self.position = self.position + 1;
                     if self.is_done()
                         || (self.chars[self.position] != '_'
+                            && self.chars[self.position] != ':'
                             && !char::is_alphanumeric(self.chars[self.position]))
                     {
                         break;
@@ -212,7 +211,7 @@ impl<'a> Tokenizer<'a> {
                 Ok(Some(token))
             }
             _ => ParseResult::Err(self.parse_error(
-                ParseErrorType::TokenizerError,
+                ErrorType::TokenizerError,
                 format!("unexpected character {} in input", c),
             )),
         }
@@ -227,7 +226,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Obtains the next two tokens from the character stream without changing the internal position.
-    pub fn peek_next_two(&mut self) -> Result<(Option<Token>, Option<Token>), ParseError> {
+    pub fn peek_next_two(&mut self) -> Result<(Option<Token>, Option<Token>), Error> {
         let pos = self.position;
         let result = (self.next()?, self.next()?);
         self.position = pos;
@@ -258,17 +257,17 @@ impl<'a> Tokenizer<'a> {
     /// Creates a new parse error using the given position.
     pub fn parse_error_pos(
         &'a self,
-        error_type: ParseErrorType,
+        error_type: ErrorType,
         position: usize,
         message: impl ToString,
-    ) -> ParseError {
+    ) -> Error {
         // clamp position to length to avoid panicking
         let position = usize::min(position, self.chars.len() - 1);
-        ParseError::new(Some(self), error_type, position, message)
+        Error::new(Some(self), error_type, position, message)
     }
 
     /// Creates a new parse error using the current position in the tokenizer.
-    pub fn parse_error(&'a self, error_type: ParseErrorType, message: impl ToString) -> ParseError {
+    pub fn parse_error(&'a self, error_type: ErrorType, message: impl ToString) -> Error {
         self.parse_error_pos(error_type, self.position, message)
     }
 
@@ -276,13 +275,13 @@ impl<'a> Tokenizer<'a> {
     pub fn parse_error_token(
         &'a self,
         t: &Token,
-        error_type: ParseErrorType,
+        error_type: ErrorType,
         message: impl ToString,
-    ) -> ParseError {
+    ) -> Error {
         self.parse_error_pos(error_type, t.index, message)
     }
 
-    fn skip_comments(&mut self) -> Result<char, ParseError> {
+    fn skip_comments(&mut self) -> Result<char, Error> {
         if self.is_done() {
             return Ok(*self.chars.last().unwrap_or(&'\0'));
         }
@@ -312,9 +311,9 @@ impl<'a> Tokenizer<'a> {
     }
 }
 
-impl<'a> ParseErrorContextProvider for Tokenizer<'a> {
-    fn get_line_context(&self, position: usize, max_lines: usize) -> Option<ParseErrorContext> {
-        Some(ParseErrorContext::from_chars(
+impl<'a> ErrorContextProvider for Tokenizer<'a> {
+    fn get_line_context(&self, position: usize, max_lines: usize) -> Option<ErrorContext> {
+        Some(ErrorContext::from_chars(
             self.text,
             &self.chars,
             position,
@@ -323,7 +322,7 @@ impl<'a> ParseErrorContextProvider for Tokenizer<'a> {
     }
 }
 
-/// Represents a tokenizer as an iterator of `Token` objects.
+/// Represents a tokenizer as an iterator of [Token] objects.
 pub struct TokenIterator<'a, T: ConstructableToken> {
     tokenizer: &'a mut Tokenizer<'a>,
     finished: bool,
@@ -341,7 +340,7 @@ impl<'a, T: ConstructableToken> TokenIterator<'a, T> {
 }
 
 impl<'a, T: ConstructableToken> Iterator for TokenIterator<'a, T> {
-    type Item = Result<T, ParseError>;
+    type Item = Result<T, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished {

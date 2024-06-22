@@ -1,11 +1,10 @@
 use std::fmt::Debug;
 
-#[cfg(test)]
-use clauser::test::{expect_error, SingleContainer};
+use super::util::{expect_error, SingleContainer};
 
 use clauser::{
-    deserializer::de::from_str,
-    parse_error::{ParseError, ParseErrorType},
+    de::from_str,
+    error::{Error, ErrorType},
 };
 use clauser_macros::EnableDuplicateKeys;
 use serde::Deserialize;
@@ -18,7 +17,7 @@ enum BasicEnum {
 }
 
 #[test]
-fn basic_enum() -> Result<(), ParseError> {
+fn basic_enum() -> Result<(), Error> {
     assert_eq!(
         from_str::<SingleContainer<BasicEnum>>("val = Value1")?.val,
         BasicEnum::Value1
@@ -32,9 +31,9 @@ fn basic_enum() -> Result<(), ParseError> {
         BasicEnum::Value3
     );
 
-    expect_error::<SingleContainer<BasicEnum>>("val = Value0", ParseErrorType::UnknownVariant)?;
-    expect_error::<SingleContainer<BasicEnum>>("val = 100", ParseErrorType::UnexpectedTokenError)?;
-    expect_error::<SingleContainer<BasicEnum>>("val = ", ParseErrorType::UnexpectedTokenError)?;
+    expect_error::<SingleContainer<BasicEnum>>("val = Value0", ErrorType::UnknownVariant)?;
+    expect_error::<SingleContainer<BasicEnum>>("val = 100", ErrorType::UnexpectedTokenError)?;
+    expect_error::<SingleContainer<BasicEnum>>("val = ", ErrorType::UnexpectedTokenError)?;
 
     Ok(())
 }
@@ -49,7 +48,7 @@ enum BasicUntaggedEnum {
 }
 
 #[test]
-fn basic_untagged_enum() -> Result<(), ParseError> {
+fn basic_untagged_enum() -> Result<(), Error> {
     SingleContainer::<BasicUntaggedEnum>::expect("val = ", BasicUntaggedEnum::Unit)?;
     SingleContainer::<BasicUntaggedEnum>::expect("val = yes", BasicUntaggedEnum::Item(true))?;
     SingleContainer::<BasicUntaggedEnum>::expect("val = { 0 1 }", BasicUntaggedEnum::Pair(0, 1))?;
@@ -72,7 +71,7 @@ enum ComplexUntaggedEnum {
 }
 
 #[test]
-fn complex_enum() -> Result<(), ParseError> {
+fn complex_enum() -> Result<(), Error> {
     SingleContainer::<ComplexUntaggedEnum>::expect("val = 20", ComplexUntaggedEnum::Newtype(20))?;
 
     assert_eq!(
@@ -107,7 +106,7 @@ enum InternallyTaggedEnum {
 }
 
 #[test]
-fn internally_tagged_enum() -> Result<(), ParseError> {
+fn internally_tagged_enum() -> Result<(), Error> {
     SingleContainer::<InternallyTaggedEnum>::expect(
         "val = { type = Unit }",
         InternallyTaggedEnum::Unit,
@@ -119,19 +118,16 @@ fn internally_tagged_enum() -> Result<(), ParseError> {
 
     expect_error::<SingleContainer<InternallyTaggedEnum>>(
         "val = { type = Incorrect }",
-        ParseErrorType::UnknownVariant,
+        ErrorType::UnknownVariant,
     )?;
     expect_error::<SingleContainer<InternallyTaggedEnum>>(
         "val = { num = 900 }",
-        ParseErrorType::MissingField,
+        ErrorType::MissingField,
     )?;
-    expect_error::<SingleContainer<InternallyTaggedEnum>>(
-        "val = 900",
-        ParseErrorType::InvalidType,
-    )?;
+    expect_error::<SingleContainer<InternallyTaggedEnum>>("val = 900", ErrorType::InvalidType)?;
     expect_error::<SingleContainer<InternallyTaggedEnum>>(
         "val = { type = \"String\" }",
-        ParseErrorType::UnexpectedTokenError,
+        ErrorType::UnexpectedTokenError,
     )?;
 
     Ok(())
@@ -147,7 +143,7 @@ enum AdjacentlyTaggedEnum {
 }
 
 #[test]
-pub fn adjacently_tagged_enum() -> Result<(), ParseError> {
+pub fn adjacently_tagged_enum() -> Result<(), Error> {
     SingleContainer::<AdjacentlyTaggedEnum>::expect(
         "val = { t = Unit }",
         AdjacentlyTaggedEnum::Unit,
@@ -171,15 +167,15 @@ pub fn adjacently_tagged_enum() -> Result<(), ParseError> {
 
     expect_error::<SingleContainer<AdjacentlyTaggedEnum>>(
         "val = { t = Incorrect }",
-        ParseErrorType::UnknownVariant,
+        ErrorType::UnknownVariant,
     )?;
     expect_error::<SingleContainer<AdjacentlyTaggedEnum>>(
         "val = { t = Tuple c = }",
-        ParseErrorType::UnexpectedTokenError,
+        ErrorType::UnexpectedTokenError,
     )?;
     expect_error::<SingleContainer<AdjacentlyTaggedEnum>>(
         "val = { c = {} }",
-        ParseErrorType::UnexpectedTokenError,
+        ErrorType::UnexpectedTokenError,
     )?;
 
     Ok(())

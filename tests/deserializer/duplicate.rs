@@ -1,7 +1,5 @@
-use clauser::{
-    parse_error::{ParseError, ParseErrorType},
-    test::{expect_error, SingleContainer},
-};
+use super::util::{expect_error, SingleContainer};
+use clauser::error::{Error, ErrorType};
 use clauser_macros::{duplicate_keys, EnableDuplicateKeys};
 
 #[derive(Debug, PartialEq)]
@@ -12,7 +10,7 @@ struct DuplicateKeys {
 }
 
 #[test]
-pub fn duplicate_keys() -> Result<(), ParseError> {
+pub fn duplicate_keys() -> Result<(), Error> {
     SingleContainer::<DuplicateKeys>::expect(
         "val = { item = one item = two item = three }",
         DuplicateKeys {
@@ -42,9 +40,17 @@ struct DuplicateAndNormalKeys {
 }
 
 #[test]
-pub fn duplicate_and_normal_keys() -> Result<(), ParseError> {
+pub fn duplicate_and_normal_keys() -> Result<(), Error> {
+    let source = "
+	val = { 
+		item = one 
+		unique1 = 50 
+		item = two 
+		item = three 
+		unique2 = cool 
+	}";
     SingleContainer::<DuplicateAndNormalKeys>::expect(
-        "val = { item = one unique1 = 50 item = two item = three unique2 = cool }",
+        source,
         DuplicateAndNormalKeys {
             item: vec!["one", "two", "three"]
                 .iter()
@@ -59,7 +65,7 @@ pub fn duplicate_and_normal_keys() -> Result<(), ParseError> {
 }
 
 #[test]
-pub fn empty_duplicate() -> Result<(), ParseError> {
+pub fn empty_duplicate() -> Result<(), Error> {
     SingleContainer::<DuplicateAndNormalKeys>::expect(
         "val = { unique1 = 0 unique2 = test }",
         DuplicateAndNormalKeys {
@@ -75,11 +81,8 @@ pub fn empty_duplicate() -> Result<(), ParseError> {
 }
 
 #[test]
-pub fn duplicate_keys_invalid() -> Result<(), ParseError> {
-    expect_error::<SingleContainer<i32>>(
-        "val = 1 val = 2 val = 3",
-        ParseErrorType::DuplicateField,
-    )?;
+pub fn duplicate_keys_invalid() -> Result<(), Error> {
+    expect_error::<SingleContainer<i32>>("val = 1 val = 2 val = 3", ErrorType::DuplicateField)?;
 
     Ok(())
 }

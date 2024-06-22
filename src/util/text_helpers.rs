@@ -69,8 +69,8 @@ impl<'a> CharHelper<'a> {
         lines
     }
 
-    /// Like `find_lines_before`, this method returns the bounds of up to `max_lines`
-    /// before the line pointed to by `position`. Unlike `find_lines_before`, though, this
+    /// Like [CharHelper::find_lines_before], this method returns the bounds of up to `max_lines`
+    /// before the line pointed to by `position`. Unlike [CharHelper::find_lines_before], though, this
     /// method also returns the line containing `position` as the last element in the vec.
     ///
     /// `position` can be any index between the start and end of the line.

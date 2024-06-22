@@ -30,10 +30,6 @@ pub enum TokenType {
      */
     Equals,
     /**
-     * The ':' symbol.
-     */
-    Colon,
-    /**
      * The '{' symbol.
      */
     OpenBracket,
@@ -65,6 +61,10 @@ pub enum TokenType {
      * A yes or no value.
      */
     Boolean,
+    /**
+     * A token in the form `YYYY.MM.DD(.HH)` with the last component, hours, being optional.`
+     */
+    Date,
 }
 
 #[derive(Debug)]

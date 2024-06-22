@@ -1,7 +1,5 @@
 use crate::{
-    parse_error::{
-        ParseError, ParseErrorContext, ParseErrorContextProvider, ParseErrorType, ParseResult,
-    },
+    error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
     token::{Token, TokenType},
     tokenizer::Tokenizer,
     types::{CollectionType, RealType},
@@ -38,7 +36,7 @@ impl<'a> Reader<'a> {
     fn decrement_depth(&mut self) -> ParseResult<Token> {
         if self.current_depth <= 0 {
             return Err(self.parse_error(
-                ParseErrorType::DepthMismatchError,
+                ErrorType::DepthMismatchError,
                 "attempted to decrement depth but already at top-level",
             ));
         }
@@ -53,7 +51,7 @@ impl<'a> Reader<'a> {
     }
 
     /// Obtains the next token from the tokenizer, erroring if the token type doesn't match the expected type.
-    pub fn expect_token(&mut self, expected_type: TokenType) -> Result<Token, ParseError> {
+    pub fn expect_token(&mut self, expected_type: TokenType) -> Result<Token, Error> {
         match self.tokenizer.next() {
             Ok(opt) => match opt {
                 Some(token) => match &token.token_type {
@@ -61,7 +59,7 @@ impl<'a> Reader<'a> {
                     _ => Err(self.unexpected_token_error(&token, expected_type)),
                 },
                 None => Err(self.parse_error(
-                    ParseErrorType::UnexpectedTokenError,
+                    ErrorType::UnexpectedTokenError,
                     format!("unexpected EOF, expected {:?}", expected_type),
                 )),
             },
@@ -84,8 +82,8 @@ impl<'a> Reader<'a> {
     }
 
     /// Reads the next property name and type, if available.
-    pub fn next_property(&mut self) -> ParseResult<PropertyInfo> {
-        let result = self.tokenizer.next()?;
+    pub fn next_property(&mut self) -> ParseResult<PropertyInfo<'a>> {
+        let result = self.tokenizer.peek()?;
         if result.is_none() {
             if self.current_depth == 0 {
                 // EOF is a valid end for the root object
@@ -93,7 +91,7 @@ impl<'a> Reader<'a> {
             }
 
             return Err(self.parse_error(
-                ParseErrorType::UnexpectedTokenError,
+                ErrorType::UnexpectedTokenError,
                 String::from("unexpected EOF while reading next property"),
             ));
         }
@@ -103,7 +101,7 @@ impl<'a> Reader<'a> {
             if self.current_depth == 0 {
                 return Err(self.parse_error_token(
                     &token,
-                    ParseErrorType::UnexpectedTokenError,
+                    ErrorType::UnexpectedTokenError,
                     String::from("unexpected CloseBracket while reading next property"),
                 ));
             }
@@ -116,12 +114,13 @@ impl<'a> Reader<'a> {
             return Err(self.unexpected_token_error(&token, TokenType::Identifier));
         }
 
+        self.tokenizer.next()?;
         let key = self.tokenizer.str_for_token(&token);
         // property_name = ...
         self.expect_token(TokenType::Equals)?;
 
         let real_type = self.peek_next_type()?.ok_or(self.parse_error(
-            ParseErrorType::UnexpectedTokenError,
+            ErrorType::UnexpectedTokenError,
             String::from("expected value, got EOF"),
         ))?;
 
@@ -129,13 +128,13 @@ impl<'a> Reader<'a> {
     }
 
     /// Reads a string from the token stream, if available.
-    pub fn read_string(&mut self) -> Result<&'a str, ParseError> {
+    pub fn read_string(&mut self) -> Result<&'a str, Error> {
         let token = self.expect_token(TokenType::String)?;
         Ok(self.tokenizer.str_for_token(&token))
     }
 
     /// Peeks the next string that would be read from the token stream.
-    pub fn peek_expected_string(&mut self) -> Result<&'a str, ParseError> {
+    pub fn peek_expected_string(&mut self) -> Result<&'a str, Error> {
         let pos = self.tokenizer.position;
         let str = self.read_string()?;
         self.tokenizer.position = pos;
@@ -143,13 +142,13 @@ impl<'a> Reader<'a> {
     }
 
     /// Reads an identifier from the token stream, if available.
-    pub fn read_identifier(&mut self) -> Result<&'a str, ParseError> {
+    pub fn read_identifier(&mut self) -> Result<&'a str, Error> {
         let token = self.expect_token(TokenType::Identifier)?;
         Ok(self.tokenizer.str_for_token(&token))
     }
 
     /// Reads a string, identifier, or empty from the input stream, if any.
-    pub fn read_stringlike(&mut self) -> Result<&'a str, ParseError> {
+    pub fn read_stringlike(&mut self) -> Result<&'a str, Error> {
         let next_token = self.tokenizer.peek()?;
 
         if next_token.is_none() {
@@ -174,7 +173,7 @@ impl<'a> Reader<'a> {
                 }
 
                 Err(self.parse_error(
-                    ParseErrorType::UnexpectedTokenError,
+                    ErrorType::UnexpectedTokenError,
                     format!(
                         "expected identifier, string, or empty, got {:?}",
                         next_token
@@ -185,30 +184,30 @@ impl<'a> Reader<'a> {
     }
 
     /// Reads a boolean from the token stream, if available.
-    pub fn read_boolean(&mut self) -> Result<bool, ParseError> {
+    pub fn read_boolean(&mut self) -> Result<bool, Error> {
         let token = self.expect_token(TokenType::Boolean)?;
         let str = self.tokenizer.str_for_token(&token);
         Ok(str.starts_with('y'))
     }
 
     /// Reads a number from the token stream, if available.
-    pub fn read_number<T: FromStr>(&mut self) -> Result<T, ParseError> {
+    pub fn read_number<T: FromStr>(&mut self) -> Result<T, Error> {
         let token = self.expect_token(TokenType::Number)?;
         let str = self.tokenizer.str_for_token(&token);
         self.parse_number(str)
     }
 
     /// Read a number from the token stream, returning its string value.
-    pub fn read_number_as_str(&mut self) -> Result<&'a str, ParseError> {
+    pub fn read_number_as_str(&mut self) -> Result<&'a str, Error> {
         let token = self.expect_token(TokenType::Number)?;
         Ok(self.tokenizer.str_for_token(&token))
     }
 
     /// Parses a number from a string.
-    pub fn parse_number<T: FromStr>(&self, str: &str) -> Result<T, ParseError> {
+    pub fn parse_number<T: FromStr>(&self, str: &str) -> Result<T, Error> {
         str.parse::<T>().map_err(|_| {
             self.tokenizer.parse_error_pos(
-                ParseErrorType::InvalidNumberError,
+                ErrorType::InvalidNumberError,
                 self.tokenizer.position - str.len(),
                 format!("failed to parse number from token '{}'", str),
             )
@@ -232,7 +231,7 @@ impl<'a> Reader<'a> {
         let real_type =
             RealType::from_token_type(&token.token_type).ok_or(self.parse_error_token(
                 &token,
-                ParseErrorType::UnexpectedTokenError,
+                ErrorType::UnexpectedTokenError,
                 format!("unexpected token type {:?} in array", token.token_type),
             ))?;
 
@@ -248,7 +247,7 @@ impl<'a> Reader<'a> {
             Some(token) => Ok(Some(RealType::from_token_type(&token.token_type).ok_or(
                 self.parse_error_token(
                     &token,
-                    ParseErrorType::UnexpectedTokenError,
+                    ErrorType::UnexpectedTokenError,
                     format!("unexpected token type {:?} in value", token.token_type),
                 ),
             )?)),
@@ -256,20 +255,20 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// Peeks the type of the next value in the token stream like `peek_next_type`,
+    /// Peeks the type of the next value in the token stream like [Reader::peek_next_type],
     /// but this method will error if EOF is encountered.
-    pub fn peek_next_type_expect(&mut self) -> Result<RealType, ParseError> {
+    pub fn peek_next_type_expect(&mut self) -> Result<RealType, Error> {
         match self.peek_next_type()? {
             Some(token_type) => Ok(token_type),
             None => Err(self.parse_error(
-                ParseErrorType::UnexpectedTokenError,
+                ErrorType::UnexpectedTokenError,
                 "expected next token, found EOF",
             )),
         }
     }
 
     /// Peeks ahead to see if this collection (array or object) has finished
-    pub fn is_collection_ended(&mut self) -> Result<bool, ParseError> {
+    pub fn is_collection_ended(&mut self) -> Result<bool, Error> {
         match self.tokenizer.peek()? {
             None => {
                 if self.current_depth == 0 {
@@ -277,7 +276,7 @@ impl<'a> Reader<'a> {
                 }
 
                 return Err(self.parse_error(
-                    ParseErrorType::UnexpectedTokenError,
+                    ErrorType::UnexpectedTokenError,
                     "expected value or close bracket, found EOF",
                 ));
             }
@@ -290,7 +289,7 @@ impl<'a> Reader<'a> {
 
     /// Attempt to discern between an array or map by looking at the next token.
     ///
-    /// Empty collections (`{}`) will return None.
+    /// Empty collections (`{}`) will return Array.
     pub fn try_discern_array_or_map(&mut self) -> ParseResult<CollectionType> {
         let (maybe_braces, maybe_value) = self.tokenizer.peek_next_two()?;
 
@@ -304,20 +303,19 @@ impl<'a> Reader<'a> {
         if maybe_braces.token_type != TokenType::OpenBracket {
             return Err(self.parse_error_token(
                 &maybe_braces,
-                ParseErrorType::UnexpectedTokenError,
+                ErrorType::UnexpectedTokenError,
                 format!("expected open bracket, found {:?}", maybe_braces.token_type),
             ));
         }
 
         match maybe_value.token_type {
             TokenType::Identifier => Ok(Some(CollectionType::Object)),
-            TokenType::CloseBracket => Ok(None),
             _ => Ok(Some(CollectionType::Array)),
         }
     }
 
     /// Checks if this property might not have a value.
-    pub fn is_next_value_empty(&mut self) -> Result<bool, ParseError> {
+    pub fn is_next_value_empty(&mut self) -> Result<bool, Error> {
         let next_token = self.tokenizer.peek()?;
 
         Ok(match next_token {
@@ -333,18 +331,18 @@ impl<'a> Reader<'a> {
         })
     }
 
-    /// Creates a new `ParseError` using the current position of the tokenizer.
-    pub fn parse_error(&self, error_type: ParseErrorType, message: impl ToString) -> ParseError {
+    /// Creates a new [Error] using the current position of the tokenizer.
+    pub fn parse_error(&self, error_type: ErrorType, message: impl ToString) -> Error {
         self.tokenizer.parse_error(error_type, message)
     }
 
-    /// Creates a new `ParseError` using the position of the given token.
+    /// Creates a new [Error] using the position of the given token.
     pub fn parse_error_token(
         &self,
         token: &Token,
-        error_type: ParseErrorType,
+        error_type: ErrorType,
         message: impl ToString,
-    ) -> ParseError {
+    ) -> Error {
         self.tokenizer.parse_error_token(token, error_type, message)
     }
 
@@ -353,11 +351,11 @@ impl<'a> Reader<'a> {
         self.tokenizer.find_end_of_line(start) < end
     }
 
-    /// Creates a new `ParseError` for an unexpected token error.
-    fn unexpected_token_error(&self, token: &Token, expected_type: TokenType) -> ParseError {
+    /// Creates a new [Error] for an unexpected token error.
+    fn unexpected_token_error(&self, token: &Token, expected_type: TokenType) -> Error {
         self.parse_error_token(
             token,
-            ParseErrorType::UnexpectedTokenError,
+            ErrorType::UnexpectedTokenError,
             format!(
                 "unexpected token type {:?}, expected {:?}",
                 token.token_type, expected_type
@@ -366,8 +364,8 @@ impl<'a> Reader<'a> {
     }
 }
 
-impl<'a> ParseErrorContextProvider for Reader<'a> {
-    fn get_line_context(&self, position: usize, max_lines: usize) -> Option<ParseErrorContext> {
+impl<'a> ErrorContextProvider for Reader<'a> {
+    fn get_line_context(&self, position: usize, max_lines: usize) -> Option<ErrorContext> {
         self.tokenizer.get_line_context(position, max_lines)
     }
 }
