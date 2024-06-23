@@ -1,7 +1,4 @@
-use std::{
-    borrow::{Borrow, Cow},
-    convert::Infallible,
-};
+use std::borrow::Cow;
 
 use serde::Deserialize;
 use zerocopy::transmute;
