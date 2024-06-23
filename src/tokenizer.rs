@@ -2,7 +2,8 @@ use std::{marker::PhantomData, str::FromStr};
 
 use crate::{
     error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
-    token::{ConstructableToken, Date, OwnedToken, Token, TokenType},
+    token::{ConstructableToken, OwnedToken, Token, TokenType},
+    types::Date,
     util::text_helpers::CharHelper,
 };
 

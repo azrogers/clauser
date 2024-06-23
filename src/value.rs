@@ -1,12 +1,20 @@
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::fmt::Debug;
 
-use crate::token::Date;
+use crate::types::ObjectKey;
 use crate::{
     error::Error,
     reader::Reader,
-    token::{CollectionType, RealType},
+    types::Date,
+    types::{CollectionType, RealType},
 };
+
+/// A single (key, value) entry in an object value.
+pub type ObjectEntry<'src> = (ObjectKey<'src>, Value<'src>);
+
+/// An object value containing (key, value) pairs.
+/// Duplicate keys are allowed.
+pub type ObjectMap<'src> = Vec<ObjectEntry<'src>>;
 
 /// A variant that represents a Clausewitz source file as a tree of types and values.
 /// [from_reader](`Value::from_reader`) and [from_str](`Value::from_str`) can be used to deserialize
@@ -17,60 +25,22 @@ use crate::{
 /// It also makes no guarantees about the validity of the data, as long as it's parseable.
 ///
 /// You should only use [Value] for situations where the schema of the data can't be known beforehand.
-#[derive(Debug, PartialEq)]
-pub enum ValueBase<T>
-where
-    T: std::fmt::Debug + ToOwned,
-{
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum Value<'src> {
     None,
     Integer(i64),
     Decimal(f64),
     Boolean(bool),
     Date(Date),
-    String(T),
-    Identifier(T),
-    Object(Vec<(T, ValueBase<T>)>),
-    Array(Vec<ValueBase<T>>),
+    String(Cow<'src, str>),
+    Identifier(Cow<'src, str>),
+    Object(ObjectMap<'src>),
+    Array(Vec<Value<'src>>),
 }
 
-pub type Value<'src> = ValueBase<&'src str>;
-pub type ValueOwned = ValueBase<String>;
-pub type ValueCow<'src> = ValueBase<Cow<'src, str>>;
-
-impl<T> ToOwned for ValueBase<T>
-where
-    ValueOwned: Borrow<ValueBase<T>>,
-    T: Into<String> + std::fmt::Debug + ToOwned,
-    for<'a> &'a T: Into<String>,
-{
-    type Owned = ValueOwned;
-
-    /// Creates a copy of a [ValueBase] variant where all strings are owned.
-    fn to_owned(&self) -> Self::Owned {
-        match self {
-            ValueBase::None => ValueOwned::None,
-            ValueBase::Integer(v) => ValueOwned::Integer(*v),
-            ValueBase::Decimal(v) => ValueOwned::Decimal(*v),
-            ValueBase::Boolean(v) => ValueOwned::Boolean(*v),
-            ValueBase::Date(v) => ValueOwned::Date(*v),
-            ValueBase::String(v) => ValueOwned::String(v.into()),
-            ValueBase::Identifier(v) => ValueOwned::Identifier(v.into()),
-            ValueBase::Array(v) => ValueOwned::Array(v.into_iter().map(|v| v.to_owned()).collect()),
-            ValueBase::Object(v) => ValueOwned::Object(
-                v.into_iter()
-                    .map(|(k, v)| (k.into(), v.to_owned()))
-                    .collect(),
-            ),
-        }
-    }
-}
-
-impl<'reader, 'src: 'reader, T> ValueBase<T>
-where
-    T: std::fmt::Debug + ToOwned + From<&'src str>,
-{
+impl<'reader, 'src: 'reader> Value<'src> {
     /// Recursively reads a source file from a [Reader] into a [Value].
-    pub fn from_reader(reader: &'reader mut Reader<'src>) -> Result<ValueBase<T>, Error> {
+    pub fn from_reader(reader: &'reader mut Reader<'src>) -> Result<Value<'src>, Error> {
         let mut values = Vec::new();
 
         while let Some((name, _)) = reader.next_property()? {
@@ -81,7 +51,7 @@ where
     }
 
     /// Recursively reads the next available value from a [Reader] into a [Value].
-    pub fn next_from_reader(reader: &'reader mut Reader<'src>) -> Result<ValueBase<T>, Error> {
+    pub fn next_from_reader(reader: &'reader mut Reader<'src>) -> Result<Value<'src>, Error> {
         let next = reader.peek_next_type()?;
 
         if next.is_none() {

@@ -1,15 +1,13 @@
-use core::fmt;
-
 use serde::de::{
-    self, DeserializeSeed, EnumAccess, Error as SerdeError, IntoDeserializer, MapAccess, SeqAccess,
-    VariantAccess, Visitor,
+    self, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
+    Visitor,
 };
 use serde::Deserialize;
 
 use crate::error::{Error, ErrorType, ParseCompleteResult};
 use crate::reader::Reader;
-use crate::token::{CollectionType, RealType};
-use crate::token::{Date, TokenType};
+use crate::token::TokenType;
+use crate::types::{CollectionType, RealType};
 
 type Result<T> = ParseCompleteResult<T>;
 
@@ -246,7 +244,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         Ok(value)
     }
 
-    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value>
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
@@ -467,125 +465,3 @@ impl<'de, 'a> VariantAccess<'de> for EnumAccessor<'a, 'de> {
         de::Deserializer::deserialize_map(self.de, visitor)
     }
 }
-
-/*
-impl<'de> Deserialize<'de> for Date {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        deserializer.
-    }
-}
-
-struct DateVisitor<'a>(&'a Date);
-
-impl<'a, 'de: 'a> Visitor<'de> for DateVisitor<'a> {
-    type Value = Date;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "a Date")
-    }
-
-    fn visit_u128<E>(self, _: u128) -> std::result::Result<Date, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(*self.0)
-    }
-}
-
-struct DateSingleSeed<'a, 'de: 'a>(&'a mut Deserializer<'de>);
-
-impl<'a, 'de> DeserializeSeed<'de> for DateSingleSeed<'a, 'de> {
-    type Value = Date;
-
-    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let date = self
-            .0
-            .reader
-            .read_date()
-            .map_err(|e| de::Error::custom(format!("error {:?} while reading Date", e)))?;
-
-        deserializer.deserialize_u128(DateVisitor(&date))
-    }
-}
-
-struct DateAccessor {
-    date: Date,
-}
-
-impl<'de, 'a> VariantAccess<'de> for DateAccessor {
-    type Error = Error;
-
-    fn unit_variant(self) -> std::result::Result<(), Self::Error> {
-        unimplemented!()
-    }
-
-    fn newtype_variant_seed<T>(self, seed: T) -> std::result::Result<T::Value, Self::Error>
-    where
-        T: DeserializeSeed<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn tuple_variant<V>(self, len: usize, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        assert!(len == 4);
-        Ok((
-            self.date.years,
-            self.date.months,
-            self.date.days,
-            self.date.hours,
-        ))
-    }
-
-    fn struct_variant<V>(
-        self,
-        _fields: &'static [&'static str],
-        _visitor: V,
-    ) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-}
-
-impl<'a, 'de: 'a> DateAccessor<'a, 'de> {
-    fn new(de: &'a mut Deserializer<'de>) -> Self {
-        DateAccessor {
-            de,
-            contents: date.into(),
-            index: 0,
-        }
-    }
-}
-
-impl<'a, 'de: 'a, T> SeqAccess<'de> for DateAccessor<'a, 'de> {
-    type Error = Error;
-
-    fn next_element_seed(&mut self, seed: T) -> std::result::Result<Option<T::Value>, Self::Error>
-    where
-        T: DeserializeSeed<'de>,
-    {
-        if self.index >= 4 {
-            // out of date fields to return
-            return Ok(None);
-        }
-
-        self.index = self.index + 1;
-
-        seed.deserialize(&mut *self.de).map(Some)
-    }
-
-    fn size_hint(&self) -> Option<usize> {
-        Some(4 - self.index)
-    }
-}
-*/

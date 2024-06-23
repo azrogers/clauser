@@ -5,7 +5,7 @@ use super::util::{expect_error, expect_str, SingleContainer};
 use clauser::{
     de::from_str,
     error::{Error, ErrorType},
-    token::Date,
+    types::Date,
 };
 use serde::Deserialize;
 

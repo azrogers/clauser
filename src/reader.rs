@@ -1,11 +1,12 @@
 use crate::{
     error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
-    token::{CollectionType, Date, RealType, Token, TokenType},
+    token::{Token, TokenType},
     tokenizer::Tokenizer,
+    types::{CollectionType, Date, ObjectKey, RealType},
 };
 use std::str::FromStr;
 
-pub type PropertyInfo<'a> = (&'a str, RealType);
+pub type PropertyInfo<'a> = (ObjectKey<'a>, RealType);
 
 pub struct Reader<'a> {
     tokenizer: Tokenizer<'a>,
@@ -55,7 +56,7 @@ impl<'a> Reader<'a> {
             Ok(opt) => match opt {
                 Some(token) => match &token.token_type {
                     t if *t == expected_type => Ok(token),
-                    _ => Err(self.unexpected_token_error(&token, expected_type)),
+                    _ => Err(self.unexpected_token_error(&token, &[expected_type])),
                 },
                 None => Err(self.parse_error(
                     ErrorType::UnexpectedTokenError,
@@ -98,23 +99,24 @@ impl<'a> Reader<'a> {
         let token = result.unwrap();
         if token.token_type == TokenType::CloseBracket {
             if self.current_depth == 0 {
-                return Err(self.parse_error_token(
-                    &token,
-                    ErrorType::UnexpectedTokenError,
-                    String::from("unexpected CloseBracket while reading next property"),
-                ));
+                return Err(self.unexpected_token_error(&token, &[TokenType::CloseBracket]));
             }
 
             // we've reached the end of the object, we're done
             return Ok(None);
         }
 
-        if token.token_type != TokenType::Identifier {
-            return Err(self.unexpected_token_error(&token, TokenType::Identifier));
-        }
-
         self.tokenizer.next()?;
-        let key = self.tokenizer.str_for_token(&token);
+        let key: ObjectKey<'a> = match token.token_type {
+            TokenType::Identifier => Ok(self.tokenizer.str_for_token(&token).into()),
+            TokenType::Date => Ok(self.tokenizer.date_for_token(&token)?.into()),
+            _ => {
+                return Err(
+                    self.unexpected_token_error(&token, &[TokenType::Identifier, TokenType::Date])
+                )
+            }
+        }?;
+
         // property_name = ...
         self.expect_token(TokenType::Equals)?;
 
@@ -146,7 +148,7 @@ impl<'a> Reader<'a> {
         Ok(self.tokenizer.str_for_token(&token))
     }
 
-    /// Reads a string, identifier, or empty from the input stream, if any.
+    /// Reads a string, identifier, date, or empty from the input stream, if any.
     pub fn read_stringlike(&mut self) -> Result<&'a str, Error> {
         let next_token = self.tokenizer.peek()?;
 
@@ -292,31 +294,56 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// Attempt to discern between an array or map by looking at the next token.
+    /// Attempt to discern between an array or map by peeking ahead.
     ///
     /// Empty collections (`{}`) will return Array.
     pub fn try_discern_array_or_map(&mut self) -> ParseResult<CollectionType> {
-        let (maybe_braces, maybe_value) = self.tokenizer.peek_next_two()?;
+        let initial_pos = self.tokenizer.position;
 
-        if maybe_braces.is_none() || maybe_value.is_none() {
+        let token = self.tokenizer.next()?;
+        if token.is_none() {
+            self.tokenizer.position = initial_pos;
             return Ok(None);
         }
 
-        let maybe_braces = maybe_braces.unwrap();
-        let maybe_value = maybe_value.unwrap();
+        let token = token.unwrap();
 
-        if maybe_braces.token_type != TokenType::OpenBracket {
+        if token.token_type != TokenType::OpenBracket {
+            self.tokenizer.position = initial_pos;
             return Err(self.parse_error_token(
-                &maybe_braces,
+                &token,
                 ErrorType::UnexpectedTokenError,
-                format!("expected open bracket, found {:?}", maybe_braces.token_type),
+                format!("expected open bracket, found {:?}", token.token_type),
             ));
         }
 
-        match maybe_value.token_type {
-            TokenType::Identifier => Ok(Some(CollectionType::Object)),
-            _ => Ok(Some(CollectionType::Array)),
+        let next = self.tokenizer.next()?;
+        if next.is_none() {
+            self.tokenizer.position = initial_pos;
+            return Ok(None);
         }
+
+        let next = next.unwrap();
+        let collection_type = match next.token_type {
+            TokenType::CloseBracket => None,
+            TokenType::Identifier | TokenType::Date => {
+                // if it's an object, there will be an equals
+                let next = self.tokenizer.next()?;
+                if let Some(next) = next {
+                    match next.token_type {
+                        TokenType::Equals => Some(CollectionType::Object),
+                        _ => Some(CollectionType::Array),
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => Some(CollectionType::Array),
+        };
+
+        self.tokenizer.position = initial_pos;
+
+        Ok(collection_type)
     }
 
     /// Checks if this property might not have a value.
@@ -357,12 +384,12 @@ impl<'a> Reader<'a> {
     }
 
     /// Creates a new [Error] for an unexpected token error.
-    fn unexpected_token_error(&self, token: &Token, expected_type: TokenType) -> Error {
+    fn unexpected_token_error(&self, token: &Token, expected_type: &[TokenType]) -> Error {
         self.parse_error_token(
             token,
             ErrorType::UnexpectedTokenError,
             format!(
-                "unexpected token type {:?}, expected {:?}",
+                "unexpected token type {:?}, expected one of {:?}",
                 token.token_type, expected_type
             ),
         )
