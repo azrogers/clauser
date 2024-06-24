@@ -1,1 +1,0 @@
-Test data in this folder borrowed from the [Hearts of Iron IV The Great War mod](https://github.com/Wolferos/Hearts-of-Iron-IV-The-Great-War/tree/develop).

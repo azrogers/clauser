@@ -9,7 +9,7 @@ edition = "2021"
 pad = "0.1.6"
 serde = { version = "1.0.203", features = ["derive", "std"] }
 serde_path_to_error = "0.1.16"
-clauser_macros = { path = "./macros" }
+clauser_macros = { path = "./lib/macros" }
 static_assertions = "1.1.0"
 zerocopy = "0.7.34"
 zerocopy-derive = "0.7.34"

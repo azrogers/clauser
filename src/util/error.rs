@@ -142,6 +142,11 @@ impl Error {
             message: self.message.clone(),
         }
     }
+
+    /// Does this error currently have a `context` provided?
+    pub fn has_context(&self) -> bool {
+        self.context.is_some()
+    }
 }
 
 impl Debug for Error {

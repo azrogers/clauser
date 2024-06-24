@@ -32,6 +32,7 @@ pub fn parse_primitives() -> Result<(), Error> {
 
 #[test]
 pub fn parse_arrays() -> Result<(), Error> {
+    single_equal("val = { }", Value::Array(vec![]), "empty array")?;
     single_equal(
         "val = { 0 1 }",
         Value::Array(vec![Value::Integer(0), Value::Integer(1)]),

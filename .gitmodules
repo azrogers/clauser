@@ -1,0 +1,3 @@
+[submodule "tests/mods/Hearts-of-Iron-IV-The-Great-War"]
+	path = tests/mods/Hearts-of-Iron-IV-The-Great-War
+	url = https://github.com/Wolferos/Hearts-of-Iron-IV-The-Great-War

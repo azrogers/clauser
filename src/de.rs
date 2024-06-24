@@ -33,7 +33,10 @@ where
     let result = T::deserialize(&mut deserializer);
     match result {
         Ok(t) => Ok(t),
-        Err(e) => Err(e.with_context(&deserializer.reader, deserializer.reader.current_position())),
+        Err(e) => Err(match e.has_context() {
+            true => e,
+            false => e.with_context(&deserializer.reader, deserializer.reader.current_position()),
+        }),
     }
 }
 

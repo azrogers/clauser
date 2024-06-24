@@ -40,7 +40,18 @@ impl RealType {
 }
 
 #[derive(
-    Debug, PartialEq, PartialOrd, Clone, Copy, FromZeroes, FromBytes, AsBytes, Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Clone,
+    Copy,
+    FromZeroes,
+    FromBytes,
+    AsBytes,
+    Deserialize,
+    Hash,
 )]
 #[repr(C)]
 #[serde(from = "u128")]

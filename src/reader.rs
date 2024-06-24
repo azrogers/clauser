@@ -50,21 +50,26 @@ impl<'a> Reader<'a> {
         self.current_depth == 0
     }
 
-    /// Obtains the next token from the tokenizer, erroring if the token type doesn't match the expected type.
-    pub fn expect_token(&mut self, expected_type: TokenType) -> Result<Token, Error> {
+    /// Obtains the next token from the tokenizer, erroring if the token type doesn't match the expected types.
+    pub fn expect_tokens(&mut self, expected_types: &[TokenType]) -> Result<Token, Error> {
         match self.tokenizer.next() {
             Ok(opt) => match opt {
-                Some(token) => match &token.token_type {
-                    t if *t == expected_type => Ok(token),
-                    _ => Err(self.unexpected_token_error(&token, &[expected_type])),
+                Some(token) => match expected_types.contains(&token.token_type) {
+                    true => Ok(token),
+                    false => Err(self.unexpected_token_error(&token, expected_types)),
                 },
                 None => Err(self.parse_error(
                     ErrorType::UnexpectedTokenError,
-                    format!("unexpected EOF, expected {:?}", expected_type),
+                    format!("unexpected EOF, expected {:?}", expected_types),
                 )),
             },
             Err(e) => Err(e),
         }
+    }
+
+    /// Obtains the next token from the tokenizer, erroring if the token type doesn't match the expected type.
+    pub fn expect_token(&mut self, expected_type: TokenType) -> Result<Token, Error> {
+        self.expect_tokens(&[expected_type])
     }
 
     /// Tells the reader to begin reading an object or array.
@@ -325,7 +330,7 @@ impl<'a> Reader<'a> {
 
         let next = next.unwrap();
         let collection_type = match next.token_type {
-            TokenType::CloseBracket => None,
+            TokenType::CloseBracket => Some(CollectionType::Array),
             TokenType::Identifier | TokenType::Date => {
                 // if it's an object, there will be an equals
                 let next = self.tokenizer.next()?;
@@ -384,7 +389,7 @@ impl<'a> Reader<'a> {
     }
 
     /// Creates a new [Error] for an unexpected token error.
-    fn unexpected_token_error(&self, token: &Token, expected_type: &[TokenType]) -> Error {
+    pub fn unexpected_token_error(&self, token: &Token, expected_type: &[TokenType]) -> Error {
         self.parse_error_token(
             token,
             ErrorType::UnexpectedTokenError,

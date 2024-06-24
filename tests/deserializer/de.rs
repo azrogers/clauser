@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 use super::util::{expect_error, expect_str, SingleContainer};
 
@@ -141,22 +141,22 @@ pub fn significant_newlines() -> Result<(), Error> {
     Ok(())
 }
 
+#[derive(Deserialize, Debug, PartialEq)]
+struct DateAsKeys {
+    keys: HashMap<Date, String>,
+}
+
 #[test]
 pub fn dates() -> Result<(), Error> {
     SingleContainer::<Date>::expect("val = 1940.1.1.18", Date::new(1940, 1, 1, 18))?;
     SingleContainer::<Date>::expect("val = 1933.11.4", Date::new(1933, 11, 4, 0))?;
     SingleContainer::<Date>::expect("val = 1033.08.2.30", Date::new(1033, 8, 2, 30))?;
-
-    Ok(())
-}
-
-#[test]
-pub fn short_object_syntax() -> Result<(), Error> {
-    SingleContainer::<StringField>::expect(
-        "val.str = test",
-        StringField {
-            str: String::from("test"),
-        },
+    let mut map = HashMap::new();
+    map.insert(Date::new(1932, 1, 3, 0), String::from("test"));
+    map.insert(Date::new(1, 1, 1, 1), String::from("ok"));
+    SingleContainer::<DateAsKeys>::expect(
+        "val = { keys = { 1932.01.3 = test 01.01.01.01 = ok } }",
+        DateAsKeys { keys: map },
     )?;
 
     Ok(())

@@ -200,16 +200,12 @@ fn field_names_ident_for_struct(name: &TokenStream) -> Result<TokenStream, Macro
 
 fn visitor_name(item: &DeriveInput) -> Result<TokenStream, MacroError> {
     let name = &item.ident;
-    let generics = &item.generics;
 
     Ok(TokenStream::from_str(&format!("{}Visitor", name))?.into())
 }
 
 fn visitor_for_struct(item: &DeriveInput, s: &DataStruct) -> Result<TokenStream, MacroError> {
     let name = item.ident.to_token_stream();
-    let generics = item.generics.to_token_stream();
-
-    let full_name = quote! { #name };
 
     let visitor = visitor_name(&item)?;
     let struct_fields = discern_fields(s)?.ok_or(MacroError::Message(
@@ -317,8 +313,6 @@ fn visitor_for_struct(item: &DeriveInput, s: &DataStruct) -> Result<TokenStream,
 
 fn deserializer_for_struct(item: &DeriveInput) -> Result<TokenStream, MacroError> {
     let name = &item.ident;
-    let generics = &item.generics;
-    let params = &generics.params;
     let visitor = visitor_name(&item)?;
     Ok(quote! {
         impl<'de> serde::de::Deserialize<'de> for #name {
@@ -335,7 +329,7 @@ fn deserializer_for_struct(item: &DeriveInput) -> Result<TokenStream, MacroError
 
 fn duplicate_keys_impl(input: proc_macro::TokenStream) -> Result<TokenStream, MacroError> {
     let original: TokenStream = input.clone().into();
-    let mut item: DeriveInput = syn::parse(input).unwrap();
+    let item: DeriveInput = syn::parse(input).unwrap();
 
     let visitor = match &item.data {
         syn::Data::Struct(s) => visitor_for_struct(&item, s),
@@ -357,12 +351,12 @@ fn duplicate_keys_impl(input: proc_macro::TokenStream) -> Result<TokenStream, Ma
     Ok(output)
 }
 
-/// Denotes that the struct expects to read data that has multiple keys, and must be treated as such.
 #[proc_macro_derive(EnableDuplicateKeys, attributes(from_duplicate_key))]
 pub fn enable_duplicate_keys(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     quote! {}.into()
 }
 
+/// Denotes that the struct expects to read data that has multiple keys, and must be treated as such.
 #[proc_macro_attribute]
 pub fn duplicate_keys(
     _args: proc_macro::TokenStream,

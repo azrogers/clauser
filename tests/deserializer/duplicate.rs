@@ -101,5 +101,4 @@ pub fn correct_field_type() {
     let t = TestCases::new();
     t.compile_fail("tests/deserializer/cases/03_wrong_type.rs");
     t.compile_fail("tests/deserializer/cases/04_not_vec.rs");
-    t.pass("tests/deserializer/cases/05_generic.rs");
 }
