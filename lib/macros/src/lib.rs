@@ -356,7 +356,21 @@ pub fn enable_duplicate_keys(_input: proc_macro::TokenStream) -> proc_macro::Tok
     quote! {}.into()
 }
 
-/// Denotes that the struct expects to read data that has multiple keys, and must be treated as such.
+/// Macro attribute allowing structs to contain duplicate keys.
+///
+/// A `#[from_duplicate_keys]` attribute should be applied to each field that's expected to
+/// contain values from multiple keys. This field should be a collection, such as `Vec`,
+/// that can contain the values.
+///
+/// ### Example usage:
+/// ```
+/// #[duplicate_keys]
+/// struct DuplicateKeys {
+/// 	unique: String,
+/// 	#[from_duplicate_keys]
+/// 	duplicate: Vec<i32>
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn duplicate_keys(
     _args: proc_macro::TokenStream,

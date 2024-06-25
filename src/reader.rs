@@ -1,13 +1,20 @@
 use crate::{
-    error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
     token::{Token, TokenType},
     tokenizer::Tokenizer,
     types::{CollectionType, Date, ObjectKey, RealType},
+    util::error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
 };
 use std::str::FromStr;
 
+/// A pair of ([ObjectKey], [RealType]) values representing the next property read
+/// from an object.
 pub type PropertyInfo<'a> = (ObjectKey<'a>, RealType);
 
+/// [Reader] offers a wrapper around a [Tokenizer] that allows low-level parsing
+/// operations on a Clausewitz source file.
+///
+/// [Reader] is useful for situations where a file can't be properly parsed by either
+/// [Deserializer](`crate::de::Deserializer`) or [Value](`crate::value::Value`).
 pub struct Reader<'a> {
     tokenizer: Tokenizer<'a>,
     current_depth: usize,
@@ -153,19 +160,26 @@ impl<'a> Reader<'a> {
         Ok(self.tokenizer.str_for_token(&token))
     }
 
-    /// Reads a string, identifier, date, or empty from the input stream, if any.
+    /// Reads a string, identifier, or empty from the input stream, if any.
     pub fn read_stringlike(&mut self) -> Result<&'a str, Error> {
+        let in_property = self.tokenizer.last_char_was('=');
         let next_token = self.tokenizer.peek()?;
 
         if next_token.is_none() {
             // empty string
-            return Ok("");
+            return match in_property {
+                true => Ok(""),
+                false => Err(self.parse_error(
+                    ErrorType::UnexpectedTokenError,
+                    "expected string or identifier, got EOF",
+                )),
+            };
         }
 
         let next_token = next_token.unwrap();
 
         // new line before the next token, also an empty string
-        if self.new_line_between(self.tokenizer.position, next_token.index) {
+        if in_property && self.new_line_between(self.tokenizer.position, next_token.index) {
             return Ok("");
         }
 

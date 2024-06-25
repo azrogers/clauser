@@ -20,8 +20,8 @@ pub type ObjectMap<'src> = Vec<ObjectEntry<'src>>;
 /// [from_reader](`Value::from_reader`) and [from_str](`Value::from_str`) can be used to deserialize
 /// a Clausewitz source file into a Value tree.
 ///
-/// Using [Value] to deserialize is slower and uses more memory than using [Deserializer](`clauser::de::Deserializer``).
-/// Unlike [Deserializer](`clauser::de::Deserializer`), [Value] allocates values on the heap (though strings are not copied).
+/// Using [Value] to deserialize is slower and uses more memory than using [Deserializer](`crate::de::Deserializer``).
+/// Unlike [Deserializer](`crate::de::Deserializer`), [Value] allocates values on the heap (though strings are not copied).
 /// It also makes no guarantees about the validity of the data, as long as it's parseable.
 ///
 /// You should only use [Value] for situations where the schema of the data can't be known beforehand.

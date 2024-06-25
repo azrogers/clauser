@@ -4,19 +4,35 @@ use serde::de::{
 };
 use serde::Deserialize;
 
-use crate::error::{Error, ErrorType, ParseCompleteResult};
 use crate::reader::Reader;
 use crate::token::TokenType;
 use crate::types::{CollectionType, RealType};
+use crate::util::error::{Error, ErrorType, ParseCompleteResult};
 
 type Result<T> = ParseCompleteResult<T>;
 
+#[cfg(feature = "macros")]
+extern crate clauser_macros;
+
+/// A [serde] deserializer for Clausewitz source files.
+///
+/// Deserializing numbers, booleans, strings, identifiers, dates, objects, and arrays is supported.
+///
+/// Dates (any value matching the form `\d+.\d+.\d+(.\d+)?`) will be deserialized as the [Date](`crate::types::Date`) type,
+/// and are treated by the deserializer as a [u128] value. Dates can be used as values or as object keys,
+/// though because they aren't valid Rust identifiers, they can only be deserialized as maps with a key
+/// of [Date](`crate::types::Date`) (such as a `HashMap<Date, T>`).
+///
+/// Clausewitz files can contain duplicate keys.
+/// By default, these will be deserialized with the last key's value replacing the rest.
+/// If you need all the values of these duplicate keys, use the [duplicate_keys](`clauser_macros::duplicate_keys`) macro.
 pub struct Deserializer<'de> {
     reader: Reader<'de>,
     started_base_struct: bool,
 }
 
 impl<'de> Deserializer<'de> {
+    /// Creates a new [Deserializer] to deserialize the input string.
     pub fn from_str(input: &'de str) -> Self {
         Deserializer {
             reader: Reader::new(&input),
@@ -25,6 +41,7 @@ impl<'de> Deserializer<'de> {
     }
 }
 
+/// Attempts to deserialize the input string into `T`.
 pub fn from_str<'a, T>(s: &'a str) -> Result<T>
 where
     T: Deserialize<'a>,

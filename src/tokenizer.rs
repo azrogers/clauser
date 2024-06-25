@@ -1,23 +1,29 @@
 use std::{marker::PhantomData, str::FromStr};
 
 use crate::{
-    error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
     token::{ConstructableToken, OwnedToken, Token, TokenType},
     types::Date,
+    util::error::{Error, ErrorContext, ErrorContextProvider, ErrorType, ParseResult},
     util::text_helpers::CharHelper,
 };
 
 const COMMENT_CHAR: char = '#';
 const NEW_LINE: char = '\n';
 
+/// Tokenizes an input string into a sequence of [Token] objects.
+///
+/// For efficient lookups, the input string will be copied when the tokenizer
+/// is created. However, the tokenizer will not perform any copies or allocations
+/// after it's created.
 pub struct Tokenizer<'a> {
+    /// The current position of the [Tokenizer] in the input text.
     pub position: usize,
     chars: Vec<char>,
     text: &'a str,
 }
 
 impl<'a> Tokenizer<'a> {
-    /// Creates a new tokenizer from the input text.
+    /// Creates a new [Tokenizer] from the input text.
     pub fn new(text: &'a str) -> Tokenizer {
         Tokenizer {
             position: 0,
@@ -26,14 +32,14 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    /// Parses every token in the input text and returns them in a vector.
+    /// Parses every [Token] in the input text and returns them in a vector.
     pub fn parse_all(text: &str) -> Result<Vec<OwnedToken>, Error> {
         let mut tokenizer = Tokenizer::new(text);
         let tokens: Result<Vec<OwnedToken>, Error> = tokenizer.iter_owned().collect();
         Ok(tokens?)
     }
 
-    /// Checks if this tokenizer has hit the end of the character stream.
+    /// Checks if this [Tokenizer] has hit the end of the character stream.
     pub fn is_done(&self) -> bool {
         self.position >= self.chars.len()
     }
@@ -48,7 +54,7 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    /// Creates a new iterator from this tokenizer.
+    /// Creates a new iterator from this [Tokenizer].
     pub fn iter_generic<T: ConstructableToken>(&'a mut self) -> TokenIterator<T> {
         TokenIterator::new(self)
     }
@@ -73,7 +79,7 @@ impl<'a> Tokenizer<'a> {
         self.next_generic()
     }
 
-    /// Obtains the next ConstructableToken from the character stream, advancing the internal position.
+    /// Obtains the next [ConstructableToken] from the character stream, advancing the internal position.
     fn next_generic<T: ConstructableToken>(&mut self) -> ParseResult<T> {
         if self.is_done() {
             return Ok(None);
@@ -238,7 +244,7 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    /// Obtains the next token from the character stream without changing the internal position.
+    /// Obtains the next [Token] from the character stream without changing the internal position.
     pub fn peek(&mut self) -> ParseResult<Token> {
         let pos = self.position;
         let result = self.next();
@@ -246,15 +252,7 @@ impl<'a> Tokenizer<'a> {
         result
     }
 
-    /// Obtains the next two tokens from the character stream without changing the internal position.
-    pub fn peek_next_two(&mut self) -> Result<(Option<Token>, Option<Token>), Error> {
-        let pos = self.position;
-        let result = (self.next()?, self.next()?);
-        self.position = pos;
-        Ok(result)
-    }
-
-    /// Returns a borrowed string slice of the token's contents.
+    /// Returns a borrowed string slice of the [Token]'s contents.
     pub fn str_for_token(&self, t: &Token) -> &'a str {
         let end = t.index + t.length;
         return &self.text[t.index..end];
@@ -262,13 +260,13 @@ impl<'a> Tokenizer<'a> {
 
     /// Returns a borrowed string slice of the contents of `range`.
     ///
-    /// `range` is a tuple of (start_index, end_index).
+    /// `range` is a tuple of `(start_index, end_index)`.
     pub fn str_for_range(&self, range: (usize, usize)) -> &'a str {
         let (start, end) = range;
         return &self.text[start..end];
     }
 
-    /// Returns a new [Date] created from the contents of [Token]
+    /// Returns a new [Date] created from the contents of [Token].
     pub fn date_for_token(&self, t: &Token) -> Result<Date, Error> {
         let mut values: [u32; 4] = [0, 0, 0, 0];
         let mut value_index: usize = 0;
@@ -334,7 +332,7 @@ impl<'a> Tokenizer<'a> {
         helper.find_line_end(position)
     }
 
-    /// Creates a new parse error using the given position.
+    /// Creates a new [Error] using the given position.
     pub fn parse_error_pos(
         &'a self,
         error_type: ErrorType,
@@ -346,12 +344,12 @@ impl<'a> Tokenizer<'a> {
         Error::new(Some(self), error_type, position, message)
     }
 
-    /// Creates a new parse error using the current position in the tokenizer.
+    /// Creates a new [Error] using the current position in the [Tokenizer].
     pub fn parse_error(&'a self, error_type: ErrorType, message: impl ToString) -> Error {
         self.parse_error_pos(error_type, self.position, message)
     }
 
-    /// Creates a new parse error using the position of the given token
+    /// Creates a new [Error] using the position of the given token.
     pub fn parse_error_token(
         &'a self,
         t: &Token,
@@ -359,6 +357,15 @@ impl<'a> Tokenizer<'a> {
         message: impl ToString,
     ) -> Error {
         self.parse_error_pos(error_type, t.index, message)
+    }
+
+    /// Returns whether the previous char was `c`.
+    pub fn last_char_was(&self, c: char) -> bool {
+        if self.position == 0 || (self.position - 1) >= self.chars.len() {
+            return false;
+        }
+
+        return self.chars[self.position - 1] == c;
     }
 
     fn skip_comments(&mut self) -> Result<char, Error> {

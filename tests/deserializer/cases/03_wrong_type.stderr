@@ -135,6 +135,7 @@ error[E0277]: the trait bound `CantDeser: Deserialize<'static>` is not satisfied
              [T; 9]
              bool
              char
+             clauser::types::Date
              f32
              f64
              i128
@@ -153,7 +154,7 @@ error[E0277]: the trait bound `CantDeser: Deserialize<'static>` is not satisfied
              u64
              u8
              usize
-note: required by a bound in `assert_impl_all`
+note: required by a bound in `<TestVisitor as Visitor<'de>>::visit_map::_::{closure#0}::assert_impl_all`
   --> tests/deserializer/cases/03_wrong_type.rs:7:1
    |
 7  | #[duplicate_keys]
@@ -300,6 +301,7 @@ error[E0277]: the trait bound `CantDeser: Deserialize<'de>` is not satisfied
              [T; 9]
              bool
              char
+             clauser::types::Date
              f32
              f64
              i128

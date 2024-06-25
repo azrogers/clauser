@@ -1,6 +1,8 @@
 use std::fmt::{self, Debug, Display, Write};
 
 use pad::PadStr;
+
+#[cfg(feature = "serde")]
 use serde::{
     de::{self, Expected, Unexpected},
     ser::{self, SerializeMap},
@@ -16,6 +18,7 @@ fn join_list(list: &'static [&'static str]) -> String {
     vec.join(", ")
 }
 
+#[cfg(feature = "serde")]
 fn unexpected_to_string(unexp: &Unexpected) -> String {
     match unexp {
         Unexpected::Bool(val) => format!("unexpected bool value {}", val),
@@ -29,7 +32,8 @@ fn unexpected_to_string(unexp: &Unexpected) -> String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorType {
     /// Failed to tokenize string.
     TokenizerError,
@@ -221,6 +225,20 @@ impl Debug for Error {
     }
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Clauser parse error at position {}: {}",
+            self.position
+                .and_then(|p| Some(p.to_string()))
+                .unwrap_or(String::from("unknown")),
+            self.message
+        )
+    }
+}
+
+#[cfg(feature = "serde")]
 impl serde::Serialize for Error {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -242,21 +260,9 @@ impl serde::Serialize for Error {
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Clauser parse error at position {}: {}",
-            self.position
-                .and_then(|p| Some(p.to_string()))
-                .unwrap_or(String::from("unknown")),
-            self.message
-        )
-    }
-}
-
 impl std::error::Error for Error {}
 
+#[cfg(feature = "serde")]
 impl de::Error for Error {
     fn custom<T: Display>(msg: T) -> Self {
         Error::new_unanchored(ErrorType::Unknown, msg.to_string())

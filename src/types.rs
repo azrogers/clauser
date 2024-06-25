@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 
+#[cfg(feature = "serde")]
 use serde::Deserialize;
+
 use zerocopy::transmute;
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
 
@@ -9,14 +11,24 @@ use crate::token::TokenType;
 /// Types that are actually differentiable purely from tokens.
 #[derive(Debug, Eq, PartialEq)]
 pub enum RealType {
+    /// An object or an array.
+    ///
+    /// While *most* objects or arrays can be differentiated, a string of
+    /// `{}` could be either one - so we have to admit we don't know.
     ObjectOrArray,
+    /// An integer or decimal number.
     Number,
+    /// A boolean "yes" or "no" value.
     Boolean,
+    /// A string.
     String,
+    /// An identifier.
     Identifier,
+    /// A date.
     Date,
 }
 
+/// The possible kinds of collections in a Clausewitz file.
 #[derive(Debug, Eq, PartialEq)]
 pub enum CollectionType {
     /// A key-value map.
@@ -26,6 +38,9 @@ pub enum CollectionType {
 }
 
 impl RealType {
+    /// Creates a [RealType] from a [TokenType], if possible.
+    ///
+    /// Not all [TokenType] values have equivalent [RealType] values.
     pub fn from_token_type(t: &TokenType) -> Option<RealType> {
         match *t {
             TokenType::Boolean => Some(RealType::Boolean),
@@ -39,30 +54,26 @@ impl RealType {
     }
 }
 
+/// A value specifying years, months, days, and possibly hours.
 #[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Clone,
-    Copy,
-    FromZeroes,
-    FromBytes,
-    AsBytes,
-    Deserialize,
-    Hash,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, FromZeroes, FromBytes, AsBytes, Hash,
 )]
 #[repr(C)]
-#[serde(from = "u128")]
+#[cfg_attr(feature = "serde", derive(Deserialize), serde(from = "u128"))]
 pub struct Date {
+    /// The number of years in this date.
     pub years: u32,
+    /// The number of months in this date.
     pub months: u32,
+    /// The number of days in this date.
     pub days: u32,
+    /// The number of hours in this date.
+    /// If the source value had no hours component, this will be 0.
     pub hours: u32,
 }
 
 impl Date {
+    /// Creates a new [Date] from the given years, months, days, and hours values.
     pub fn new(years: u32, months: u32, days: u32, hours: u32) -> Date {
         Date {
             years,
@@ -111,9 +122,12 @@ impl From<Date> for (u32, u32, u32, u32) {
     }
 }
 
+/// Represents the key of an object in a [Value](`crate::value::Value`).
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum ObjectKey<'src> {
+    /// An Identifier key
     Identifier(Cow<'src, str>),
+    /// A Date key
     Date(Date),
 }
 

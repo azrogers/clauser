@@ -4,77 +4,54 @@ use crate::tokenizer::Tokenizer;
 
 /// A token that can be produced by a `Tokenizer`.
 pub trait ConstructableToken {
+    /// Creates a token type from the given information.
     fn from_tokenizer(t: &Tokenizer, token_type: TokenType, index: usize, length: usize) -> Self;
 }
 
+/// A single token from a Clausewitz source file.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum TokenType {
-    /**
-     * Tokens should never be invalid!
-     */
-    Invalid,
-    /**
-     * A non-string bit of text.
-     */
+    /// A non-string bit of text.
     Identifier,
-    /**
-     * An integer or decimal number.
-     */
+    /// An integer or decimal number.
     Number,
-    /**
-     * A string wrapped in double quotes.
-     */
+    /// A string wrapped in double quotes.
     String,
-    /**
-     * The '=' symbol.
-     */
+    /// The `=` symbol.
     Equals,
-    /**
-     * The '{' symbol.
-     */
+    /// The `{` symbol.
     OpenBracket,
-    /**
-     * The '}' symbol.
-     */
+    /// The `}` symbol.
     CloseBracket,
-    /**
-     * The '>' symbol.
-     */
+    /// The `>` symbol.
     GreaterThan,
-    /**
-     * The '<' symbol.
-     */
+    /// The `<` symbol.
     LessThan,
-    /**
-     * The '>=' symbol.
-     */
+    /// The `>=` symbol.
     GreaterThanEq,
-    /**
-     * The '<=' symbol.
-     */
+    /// The `<=` symbol.
     LessThanEq,
-    /**
-     * The '?=' symbol.
-     */
+    /// The `?=` symbol.
     ExistenceCheck,
-    /**
-     * A yes or no value.
-     */
+    /// A yes or no value.
     Boolean,
-    /**
-     * A token in the form `YYYY.MM.DD(.HH)` with the last component, hours, being optional.`
-     */
+    /// A token in the form `\d+.\d+.\d+(.\d+)?`.`
     Date,
 }
 
+/// A single [Token] obtained from a [Tokenizer].
 #[derive(Debug)]
 pub struct Token {
+    /// The index of this token in source text.
     pub index: usize,
+    /// The length of this token in chars.
     pub length: usize,
+    /// The type of this token.
     pub token_type: TokenType,
 }
 
 impl Token {
+    /// Creates a new token with the given type and bounds.
     pub fn new(token_type: TokenType, index: usize, length: usize) -> Token {
         Token {
             index,
@@ -100,10 +77,14 @@ impl fmt::Display for Token {
     }
 }
 
+/// A [Token] that owns its value.
 #[derive(Debug)]
 pub struct OwnedToken {
+    /// The index of this token in the source text.
     pub index: usize,
+    /// The type of this token.
     pub token_type: TokenType,
+    /// The value of this token.
     pub value: String,
 }
 

@@ -93,7 +93,7 @@ fn number() -> Result<(), Error> {
     )?;
     expect_error("-")?;
     expect_error(".01")?;
-    expect_error("0.1.2")?;
+    expect_error("0.1...2")?;
     expect_error("-1.")?;
     expect_error("-.")?;
     expect_error("-.0")?;
