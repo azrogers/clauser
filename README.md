@@ -9,7 +9,7 @@ It currently implements a Tokenizer, a low-level Reader, a serde-based Deseriali
 ## Examples
 
 Using serde:
-```
+```rust
 use serde::Deserialize;
 
 #[derive(Deserialize)]
