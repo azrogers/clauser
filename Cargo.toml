@@ -16,7 +16,7 @@ categories = ["parser-implementations", "game-development"]
 pad = "0.1.6"
 serde = { version = "1.0.203", features = ["derive", "std"], optional = true }
 serde_path_to_error = { version = "0.1.16", optional = true }
-clauser_macros = { path = "./lib/macros", optional = true }
+clauser_macros = { version = "0.1.0", path = "./lib/macros", optional = true }
 static_assertions = "1.1.0"
 zerocopy = "0.7.34"
 zerocopy-derive = "0.7.34"
