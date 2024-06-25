@@ -1,5 +1,6 @@
 [package]
 name = "clauser_macros"
+description = "Macros used by the `clauser` crate."
 version = "0.1.0"
 edition = "2021"
 authors = ["Ashley Rogers <ashley@anime.lgbt>"]
