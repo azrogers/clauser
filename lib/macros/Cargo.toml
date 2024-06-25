@@ -2,6 +2,10 @@
 name = "clauser_macros"
 version = "0.1.0"
 edition = "2021"
+authors = ["Ashley Rogers <ashley@anime.lgbt>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/azrogers/clauser"
 
 [lib]
 proc-macro = true
